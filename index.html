@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Exam Prep Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: exam strip → the phase you're in (with its task menu) → how to work → one compact ledger per course */
+:root{
+  --bg:#f6f7f9; --surface:#ffffff; --ink:#18212f; --muted:#5b6678; --rule:#dde2ea;
+  --accent:#1f4e8c; --accent-soft:#e3ecf8;
+  --mark:#ffe873; --mark-ink:#3d3400;
+  --done:#2f7d55; --done-soft:#e2f2e8;
+  --todo:#b4561b; --todo-soft:#fbeadf;
+  --med:#8a6a00; --med-soft:#fff3c7;
+  --display:"Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body:"Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#10151d; --surface:#171e29; --ink:#e7ebf2; --muted:#9aa5b8; --rule:#2a3442;
+  --accent:#8db4ec; --accent-soft:#1d2b40; --mark:#e3c94a; --mark-ink:#211c00;
+  --done:#6fcf9a; --done-soft:#173226; --todo:#f0a26b; --todo-soft:#3a2416; --med:#e8c95a; --med-soft:#33290f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#10151d; --surface:#171e29; --ink:#e7ebf2; --muted:#9aa5b8; --rule:#2a3442;
+  --accent:#8db4ec; --accent-soft:#1d2b40; --mark:#e3c94a; --mark-ink:#211c00;
+  --done:#6fcf9a; --done-soft:#173226; --todo:#f0a26b; --todo-soft:#3a2416; --med:#e8c95a; --med-soft:#33290f; color-scheme:dark}
+
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:1120px;margin:0 auto;padding-inline:clamp(16px,4vw,40px);padding-block:32px 64px}
+h1,h2,h3{font-family:var(--display);font-stretch:85%;text-wrap:balance;margin:0}
+h1{font-size:clamp(30px,5vw,44px);font-weight:800;letter-spacing:-.01em;line-height:1.05}
+h2{font-size:clamp(22px,3.2vw,30px);font-weight:750}
+h3{font-size:18px;font-weight:750}
+.lede{color:var(--muted);max-width:68ch;margin:10px 0 0}
+.asat{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+header{display:grid;gap:6px;margin-bottom:28px}
+.label{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+
+.strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:44px}
+@media (max-width:860px){.strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:460px){.strip{grid-template-columns:1fr}}
+.exam{background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;display:grid;gap:8px;text-decoration:none;color:inherit;min-width:0}
+.exam:hover{border-color:var(--accent)}
+.exam:focus-visible,a:focus-visible,button:focus-visible,input:focus-visible+span{outline:2px solid var(--accent);outline-offset:2px}
+.exam .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.code{font-family:var(--mono);font-weight:600;font-size:13px;color:var(--accent)}
+.days{font-family:var(--display);font-stretch:75%;font-weight:800;font-size:30px;line-height:1;font-variant-numeric:tabular-nums}
+.days small{font-family:var(--body);font-size:12px;font-weight:600;color:var(--muted);margin-left:3px}
+.exam .nm{font-weight:700;line-height:1.25}
+.exam .meta{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:13px;font-variant-numeric:tabular-nums;border-top:1px solid var(--rule);padding-top:8px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;font-weight:700;text-align:right}
+.kv dd.need{color:var(--todo)}
+
+/* phases */
+.phases{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin:14px 0 18px}
+@media (max-width:860px){.phases{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:460px){.phases{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.ph{border:1px solid var(--rule);border-radius:8px;padding:8px 10px;background:var(--surface);text-align:left;font:inherit;color:inherit;cursor:pointer;display:grid;gap:2px;min-width:0}
+.ph b{font-family:var(--display);font-stretch:85%;font-size:15px;line-height:1.15}
+.ph span{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.ph.now{border-color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
+.ph[aria-pressed="true"]{background:var(--accent-soft)}
+.ph .tag{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
+.phase-body{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;margin-bottom:14px}
+@media (max-width:760px){.phase-body{grid-template-columns:1fr}}
+.goal{font-size:17px;line-height:1.45;max-width:62ch}
+.side{display:grid;gap:10px;align-content:start}
+.side > div{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:10px 12px}
+.side .one{background:var(--mark);color:var(--mark-ink);border-color:transparent}
+.side .one .label{color:var(--mark-ink)}
+
+.filters{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0 10px;font-size:13px;color:var(--muted)}
+.chip{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:999px;padding:3px 10px;font:600 12px var(--body);cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+#cfilters{margin-top:-6px}
+.sortbtn{margin-left:auto}
+.progress{margin-left:auto;font-family:var(--mono);font-size:12px}
+.tasks{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--rule);border-radius:10px}
+.tasks li{border-bottom:1px solid var(--rule)}
+.tasks li:last-child{border-bottom:0}
+.tasks label{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:4px 10px;align-items:start;padding:10px 12px;cursor:pointer}
+.tasks input{width:17px;height:17px;margin:2px 0 0;accent-color:var(--done)}
+.tasks .t{font-weight:600;line-height:1.35}
+.tasks .m{grid-column:2/4;display:flex;flex-wrap:wrap;gap:4px 10px;font-size:12.5px;color:var(--muted)}
+.tasks .m a{color:var(--accent)}
+.tasks .tm{font-family:var(--mono);font-size:12px;color:var(--muted);white-space:nowrap;padding-top:2px}
+.tasks li.done .t{text-decoration:line-through;color:var(--muted)}
+.subs{display:flex;flex-wrap:wrap;gap:4px 18px;padding:0 12px 10px 44px;margin-top:-4px}
+.tasks .subs label{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:13px;color:var(--muted)}
+.tasks .subs label.on{color:var(--done)}
+.tasks .subs input{width:15px;height:15px;margin:0}
+.en{font-size:11px;font-weight:700;padding:1px 7px;border-radius:999px}
+.en-Low{background:var(--done-soft);color:var(--done)} .en-Med{background:var(--med-soft);color:var(--med)} .en-High{background:var(--todo-soft);color:var(--todo)}
+.note-small{font-size:12.5px;color:var(--muted);margin-top:8px}
+
+.tips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;margin-top:14px}
+@media (max-width:700px){.tips{grid-template-columns:1fr}}
+.tips div{min-width:0}
+.tips b{display:block;font-family:var(--display);font-stretch:85%;font-size:15px}
+.tips p{margin:2px 0 0;color:var(--muted);font-size:14px}
+
+section{margin-top:48px;scroll-margin-top:16px}
+.shead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:8px 24px;border-bottom:2px solid var(--ink);padding-bottom:8px}
+.shead .when{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+.shead .when b{color:var(--ink)}
+.shead h2 .code{font-size:.6em;margin-right:8px;vertical-align:middle}
+.lever{margin:12px 0;max-width:80ch}
+.facts{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);margin-bottom:12px;font-variant-numeric:tabular-nums}
+.facts b{color:var(--ink)}
+.tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--rule);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
+th{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--rule);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tr.semrow td{background:var(--bg);font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:6px 12px}
+td.topic{font-weight:600}
+td.topic .sub{display:block;font-weight:400;font-size:13px;color:var(--muted)}
+td.n{font-family:var(--display);font-stretch:80%;font-weight:800;font-size:19px;text-align:right;font-variant-numeric:tabular-nums;width:48px}
+td.dates{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.dt{font:inherit;border:0;background:none;color:inherit;padding:0 3px;border-radius:3px;cursor:pointer}.dt.db{color:var(--todo);font-weight:600;background:var(--todo-soft)}.dt.du{color:var(--muted)}.dt:hover{outline:1px solid var(--rule)}.part{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.p-done{background:var(--done-soft);color:var(--done)} .p-todo{background:var(--todo-soft);color:var(--todo)} .p-up{background:var(--accent-soft);color:var(--accent)}
+footer{margin-top:56px;border-top:1px solid var(--rule);padding-top:18px;color:var(--muted);font-size:13px;display:grid;gap:8px;max-width:90ch}
+footer a{color:var(--accent)}
+@media (prefers-reduced-motion:no-preference){.tasks li{transition:background .15s}}
+.tl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:6px 0 0 30px}
+.tl input{width:76px;font:inherit;padding:4px 6px;border:1px solid color-mix(in srgb, currentColor 35%, transparent);border-radius:6px;background:transparent;color:inherit}
+.tl .plan{margin-left:auto}
+.ptot{font-weight:600;margin-top:2px}
+.pace{margin:10px 0 0;font-size:15px;color:var(--muted)}
+.pace b{color:var(--fg);font-weight:650}
+.nb{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;
+  padding:2px 6px;border-radius:5px;margin-right:7px;vertical-align:1px;
+  background:color-mix(in srgb, var(--accent) 18%, transparent);color:var(--accent)}
+.today{margin-top:12px}
+.tbar{height:7px;border-radius:99px;overflow:hidden;background:color-mix(in srgb, currentColor 14%, transparent)}
+.tbar span{display:block;height:100%;border-radius:99px;background:var(--accent);transition:width .25s}
+.tnum{margin-top:7px;font-size:14px;color:var(--muted)}
+.tnum b{color:var(--fg);font-variant-numeric:tabular-nums}
+.tsub{font-size:13px}
+body{margin:0}
+.sync{display:grid;gap:8px}
+.sync .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sync textarea{width:100%;box-sizing:border-box;min-height:70px;font:12px var(--mono);padding:8px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)}
+.sync code{font:11.5px var(--mono);word-break:break-all;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:6px 8px;display:block}
+.btn{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 12px;font:600 13px var(--body);cursor:pointer}
+.btn:hover{border-color:var(--accent)}
+#syncmsg{font-weight:600;color:var(--done)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <span class="asat" id="asat"></span>
+    <h1>Exam Prep Map</h1>
+    <p class="lede">Your guide to 19 November. You watch the lecture videos and go to tutorials. Each phase has one goal and a menu of small tasks: pick by time and energy, tick them off, switch when you get bored. Your spreadsheet has the same menu with links to every file.</p>
+  </header>
+
+  <div class="strip" id="strip"></div>
+
+  <section id="now" style="margin-top:0">
+    <div class="shead"><h2>Where you are</h2><span class="when" id="nowline"></span></div>
+    <div class="phases" id="phases" role="group" aria-label="Phases"></div>
+    <div class="phase-body">
+      <div><span class="label">The one goal</span><p class="goal" id="goal"></p><p class="pace" id="pace"></p>
+        <div class="today" id="today"></div></div>
+      <div class="side">
+        <div class="one"><span class="label">If you only do one thing today</span><div id="one"></div></div>
+        <div><span class="label">Alongside</span><div id="also"></div></div>
+      </div>
+    </div>
+    <div class="filters">
+      <span>Energy:</span>
+      <button class="chip" data-en="all" aria-pressed="true">Any</button>
+      <button class="chip" data-en="Low" aria-pressed="false">Low</button>
+      <button class="chip" data-en="Med" aria-pressed="false">Medium</button>
+      <button class="chip" data-en="High" aria-pressed="false">High</button>
+      <span class="progress" id="progress"></span>
+    </div>
+    <div class="filters" id="cfilters">
+      <span>Course:</span>
+      <button class="chip" data-co="all" aria-pressed="true">All</button>
+      <button class="chip" data-co="FTX4056S" aria-pressed="false">Applied</button>
+      <button class="chip" data-co="ACC3009W" aria-pressed="false">FR III</button>
+      <button class="chip" data-co="ACC3004W" aria-pressed="false">Tax II</button>
+      <button class="chip" data-co="FTX4087S" aria-pressed="false">Banking</button>
+      <button class="chip sortbtn" id="sortc" aria-pressed="false">Sort by course</button>
+    </div>
+    <ul class="tasks" id="tasks"></ul>
+    <p class="note-small">Ticking a video or tutorial task updates the videos behind, tutorials to do and catch-up hours above and in the course tables. Tutorials have Attempted and Marked boxes: the main box ticks itself once a tutorial is marked, and an attempted one counts as about 15 minutes of catch-up (just the marking left). You can also click any date in a course table to mark that video watched. Ticks are saved in this browser only, so tick on the device you usually use.</p>
+  </section>
+
+  <section id="how">
+    <div class="shead"><h2>How to go about it</h2></div>
+    <div class="tips" id="tips"></div>
+  </section>
+
+  <div id="courses"></div>
+
+  <section id="progress-io">
+    <div class="shead"><h2>Your progress</h2></div>
+    <div class="sync">
+      <p class="note-small">Ticks live in this browser. To bring them across from the old Exam Prep Map page, open the old page on your laptop, press F12, go to Console, paste this line and press Enter. It copies your progress to the clipboard:</p>
+      <code id="snippet"></code>
+      <p class="note-small">Then paste it below and press Import. You can also use Export here to move progress to another device.</p>
+      <textarea id="iotext" placeholder="Paste exported progress here" aria-label="Progress data"></textarea>
+      <div class="row">
+        <button class="btn" id="doimport">Import</button>
+        <button class="btn" id="doexport">Export</button>
+        <span id="syncmsg" role="status"></span>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div>Video counts come from your course outlines, UCT's 2026 term dates and the 2026 public holidays, with your own watched/not-watched ticks from the spreadsheet as of 12 Oct. Exam % needed assumes the coursework you haven't got back yet matches your average so far; Banking's figure is optimistic because your 100% quizzes lift the average: if the project comes back at 70% you'd need about 63%. Applied Investments: if Test 2 is 50% you'd need about 74%.</div>
+    <div>FR III: the Amathuba pages put leases week 1 in the week of 21 Sep and deferred tax assets in the week of 28 Sep. The course outline (and the table below) has them the other way round.</div>
+  </footer>
+</div>
+
+<script src="data.js"></script>
+<script>
+const DATA = window.DATA;
+const PHASE_DATES = [["2026-10-12","2026-10-22"],["2026-10-23","2026-10-29"],["2026-10-30","2026-11-04"],["2026-11-05","2026-11-12"],["2026-11-13","2026-11-15"],["2026-11-16","2026-11-19"]];
+const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const d = s => new Date(s+"T00:00:00");
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const now = new Date(); const TODAY = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+const daysTo = s => Math.round((d(s)-TODAY)/864e5);
+const fmt = x => `${DOW[x.getDay()]} ${x.getDate()} ${MON[x.getMonth()]}`;
+const store = { get(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return f}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
+const NAMES = {FTX4056S:"Applied Investments",ACC3009W:"FR III",ACC3004W:"Tax II",FTX4087S:"Banking",Video:"New videos"};
+
+document.getElementById("asat").textContent = "Today · " + fmt(TODAY) + " " + TODAY.getFullYear();
+
+// ---- watched state: ticks in the menu and clicks on dates share one record ----
+const ASAT = d(DATA.asat);
+const watchMap = store.get("epm-watch", {});        // "CODE|YYYY-MM-DD" -> true/false (your overrides)
+const doneSet = new Set(store.get("epm-done", []));
+const key = t => t.p + "|" + t.t;
+const wk = (code, s) => code + "|" + s;
+function isWatched(code, r, s){
+  const k = wk(code, s);
+  if (k in watchMap) return watchMap[k];
+  return d(s) < ASAT && !r.behind.includes(s);        // spreadsheet status as of the as-at date
+}
+const rowOf = (code, s) => DATA.courses.find(c=>c.code===code).rows.find(r=>r.dates.includes(s));
+const watchedCS = (code, s) => isWatched(code, rowOf(code, s), s);
+function taskDone(t){
+  if (t.v) return t.v.every(([c,s])=>watchedCS(c,s));
+  if (t.tut) return tst(t).m;
+  return doneSet.has(key(t));
+}
+function tutsDone(code){
+  const out = new Set();
+  DATA.menu.forEach(t=>{ if (t.tu && taskDone(t)) t.tu.forEach(x=>out.add(x)); });
+  return (DATA.tutOut[code]||[]).filter(x=>out.has(x)).length;
+}
+function tutsAttempted(code){   // attempted but not yet marked
+  const out = new Set();
+  DATA.menu.forEach(t=>{ if (t.tu && tst(t).a && !tst(t).m) t.tu.forEach(x=>out.add(x)); });
+  return (DATA.tutOut[code]||[]).filter(x=>out.has(x)).length;
+}
+function stats(c){
+  let behind=0, tocome=0;
+  c.rows.forEach(r=>r.dates.forEach(s=>{
+    const w = isWatched(c.code, r, s);
+    if (d(s) < TODAY) { if (!w) behind++; } else if (!w) tocome++;
+  }));
+  const vhrs = behind * c.vlen;
+  const tOut = DATA.tutOut[c.code] ? DATA.tutOut[c.code].length - tutsDone(c.code) : null;
+  const tAtt = DATA.tutOut[c.code] ? tutsAttempted(c.code) : 0;   // attempted: only marking left (~15 min)
+  const ch = vhrs + (tOut ? (tOut - tAtt) * DATA.tutH[c.code] + tAtt * 0.25 : 0);
+  return {behind, tocome, vhrs, tOut, ch};
+}
+const tutState = store.get("epm-tut", {});           // task key -> {a: attempted, m: marked}
+function saveTut(){ store.set("epm-tut", tutState); }
+const tst = t => tutState[key(t)] || {a:false, m:false};
+// time spent per task (minutes), kept in this browser
+const timeLog = store.get("epm-time", {});
+const spent = t => timeLog[key(t)] || 0;
+function planMin(t){ const m=(t.tm||"").match(/[0-9.]+/); if(!m) return 0; const n=parseFloat(m[0]); return /min/.test(t.tm) ? n : n*60; }
+function fmtMin(m){ m=Math.round(m); const h=Math.floor(m/60), r=m%60; return h ? h+"h "+String(r).padStart(2,"0")+"m" : r+"m"; }
+// one-off: tutorial tasks ticked before the attempted/marked boxes existed count as marked
+if (store.get("epm-tut", null) === null) {
+  DATA.menu.forEach(t=>{ if (t.tut && doneSet.has(key(t))) tutState[key(t)] = {a:true, m:true}; });
+  saveTut();
+}
+function saveWatch(){ store.set("epm-watch", watchMap); }
+// one-off: video tasks you ticked before dates were linked count as watched
+if (store.get("epm-watch", null) === null) {
+  DATA.menu.forEach(t=>{ if (t.v && doneSet.has(key(t))) t.v.forEach(([c,s])=>{ watchMap[wk(c,s)] = true; }); });
+  saveWatch();
+}
+function setWatched(code, s, val){
+  const r = rowOf(code, s); const def = d(s) < ASAT && !r.behind.includes(s);
+  if (val === def) delete watchMap[wk(code,s)]; else watchMap[wk(code,s)] = val;
+}
+
+// exam strip
+function renderStrip(){
+  document.getElementById("strip").innerHTML = DATA.courses.map(c=>{
+    const e=d(c.exam), dl=daysTo(c.exam), s=stats(c);
+    return `<a class="exam" href="#${c.code}">
+      <div class="top"><span class="code">${c.code}</span><span class="days">${dl<0?"done":dl}${dl<0?"":"<small>days</small>"}</span></div>
+      <div class="nm">${esc(c.name)}</div>
+      <div class="meta">${fmt(e)} · ${c.time}<br>${esc(c.venue)} · seat ${c.seat}</div>
+      <dl class="kv">
+        <dt>Target</dt><dd>${c.target}%</dd>
+        <dt>Exam % needed</dt><dd class="need">${c.need.toFixed(1)}%</dd>
+        <dt>Videos behind</dt><dd>${s.behind} · ${s.vhrs.toFixed(1)} h</dd>
+        ${s.tOut!==null?`<dt>Tutorials to do</dt><dd>${s.tOut}</dd>`:""}
+        <dt>Catch-up (est.)</dt><dd>${s.ch.toFixed(1)} h</dd>
+        <dt>Time logged</dt><dd>${fmtMin(DATA.menu.filter(t=>t.c===c.code).reduce((a,t)=>a+spent(t),0))}</dd>
+      </dl></a>`;
+  }).join("");
+}
+
+// phases
+let current = PHASE_DATES.findIndex(([a,b])=> TODAY>=d(a) && TODAY<=d(b));
+if (current<0) current = TODAY < d(PHASE_DATES[0][0]) ? 0 : PHASE_DATES.length-1;
+let shown = store.get("epm-phase-view", null); if (shown===null || shown>5) shown = current;
+let energy = "all";
+let course = store.get("epm-course", "all"), sortByCourse = store.get("epm-sortc", false);
+const CORDER = ["FTX4056S","ACC3009W","ACC3004W","FTX4087S"];
+
+function phaseTotal(i){ return DATA.menu.filter(t=>t.p===i+1).reduce((a,t)=>a+(spent(t) || planMin(t)),0); }  // logged time where entered, planned time otherwise
+// what is still ahead in a phase, and how that spreads over the days it has left
+function renderPhaseTotals(){
+  document.querySelectorAll("#phases .ph").forEach((b,i)=>{ const e=b.querySelector(".ptot"); if(e) e.textContent = "\u2248 " + fmtMin(phaseTotal(i)) + " total"; });
+}
+function phaseLeft(i){ return DATA.menu.filter(t=>t.p===i+1 && !taskDone(t)).reduce((a,t)=>a+Math.max(0, planMin(t)-spent(t)),0); }
+function daysLeft(i){
+  const end = d(PHASE_DATES[i][1]), start = d(PHASE_DATES[i][0]);
+  const from = TODAY > start ? TODAY : start;
+  return Math.max(1, Math.round((end-from)/864e5) + 1);
+}
+// which day each task was finished on, so "done today" can be valued at its planned time
+const doneDate = store.get("epm-donedate", null) || {};
+const ymd = x => x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");
+const TKEY = ymd(TODAY);
+if (store.get("epm-donedate", null) === null) {       // first run: existing ticks predate today
+  DATA.menu.forEach(t=>{ if (taskDone(t)) doneDate[key(t)] = "seed"; });
+  store.set("epm-donedate", doneDate);
+}
+if (store.get("epm-import-seed", false)) {           // just imported: nothing that arrived done counts toward today
+  DATA.menu.forEach(t=>{ if (taskDone(t) && !doneDate[key(t)]) doneDate[key(t)] = "seed"; });
+  store.set("epm-donedate", doneDate);
+  try { localStorage.removeItem("epm-import-seed"); } catch(e) {}
+}
+function syncDoneDates(){
+  let changed = false;
+  DATA.menu.forEach(t=>{
+    const k = key(t), d = taskDone(t);
+    if (d && !doneDate[k]) { doneDate[k] = TKEY; changed = true; }
+    else if (!d && doneDate[k]) { delete doneDate[k]; changed = true; }
+  });
+  if (changed) store.set("epm-donedate", doneDate);
+}
+function renderToday(i){
+  syncDoneDates();
+  const did = DATA.menu.filter(t=>doneDate[key(t)] === TKEY).reduce((a,t)=>a+planMin(t),0);
+  const left = phaseLeft(i);
+  const need = left ? left / daysLeft(i) : 0;
+  const el = document.getElementById("today");
+  if (!left && !did) { el.innerHTML = ""; return; }
+  const pct = need ? Math.min(100, Math.round(did/need*100)) : 100;
+  el.innerHTML = `<div class="tbar"><span style="width:${pct}%"></span></div>
+    <div class="tnum"><b>${fmtMin(did)}</b> done today of <b>${fmtMin(need)}</b> needed
+      <span class="tsub">\u00b7 today's share of what's left in this phase</span></div>`;
+}
+function renderPace(){ document.getElementById("pace").innerHTML = paceLine(shown); renderToday(shown); }
+function paceLine(i){
+  const left = phaseLeft(i), end = d(PHASE_DATES[i][1]);
+  if (!left) return "Everything in this phase is ticked off.";
+  if (TODAY > end) return `${fmtMin(left)} still to do — this phase's dates have passed.`;
+  const n = daysLeft(i);
+  const started = TODAY >= d(PHASE_DATES[i][0]);
+  return `${fmtMin(left)} still to do. To finish it all by the end of ${fmt(end)}, that's <b>${fmtMin(left/n)} a day</b> over the ${n} day${n===1?"":"s"} ${started?"left, counting today":"it runs"}.`;
+}
+function renderPhases(){
+  document.getElementById("phases").innerHTML = DATA.phases.map((p,i)=>
+    `<button class="ph${i===current?" now":""}" aria-pressed="${i===shown}" data-i="${i}">
+       ${i===current?'<span class="tag">You are here</span>':'<span class="tag" style="visibility:hidden">·</span>'}
+       <b>${esc(p.name)}</b><span>${esc(p.dates)}</span><span class="ptot">≈ ${fmtMin(phaseTotal(i))} total</span></button>`).join("");
+  const p = DATA.phases[shown];
+  document.getElementById("goal").textContent = p.goal + " Total time needed: about " + fmtMin(phaseTotal(shown)) + " (" + DATA.menu.filter(t=>t.p===shown+1).length + " tasks).";
+  renderPace();
+  document.getElementById("one").textContent = p.one;
+  document.getElementById("also").textContent = p.also;
+  const start = d(PHASE_DATES[current][0]);
+  document.getElementById("nowline").innerHTML = TODAY < start
+    ? `Phase 1 starts <b>${fmt(start)}</b>` : `Phase <b>${current+1}</b> of 6`;
+  renderTasks();
+}
+function renderTasks(){
+  const all = DATA.menu.filter(t=>t.p===shown+1);
+  let list = all.filter(t=> (energy==="all" || t.e===energy) && (course==="all" || t.c===course));
+  if (sortByCourse) list = list.map((t,k)=>[t,k]).sort((a,b)=>(CORDER.indexOf(a[0].c)-CORDER.indexOf(b[0].c))||(a[1]-b[1])).map(x=>x[0]);
+  list = [...list.filter(t=>!taskDone(t)), ...list.filter(taskDone)];   // done sinks; attempted-only is not done
+  const shownDone = list.filter(taskDone).length;
+  const n = all.filter(taskDone).length;
+  const pm = all.reduce((a,t)=>a+spent(t),0);
+  const timeTxt = ` · ${fmtMin(pm)} logged of ${fmtMin(phaseTotal(shown))} estimated`;
+  document.getElementById("progress").textContent = (course==="all" ? `${n} of ${all.length} done in this phase`
+    : `${shownDone} of ${list.length} shown done · ${n} of ${all.length} in this phase`) + timeTxt;
+  document.getElementById("tasks").innerHTML = list.map(t=>{
+    const i=DATA.menu.indexOf(t), id="t"+i, dn=taskDone(t);
+    let part = "";
+    if (t.v && !dn){ const w=t.v.filter(([c,s])=>watchedCS(c,s)).length; if (w) part=` <span class="part">${w} of ${t.v.length} watched</span>`; }
+    return `<li class="${dn?"done":""}"><label for="${id}">
+      <input type="checkbox" id="${id}" data-i="${i}" ${dn?"checked":""}>
+      <span class="t">${t.note?`<span class="nb">Notes</span>`:""}${esc(t.note?t.t.replace(/^Notes:\s*/,""):t.t)}${part}</span><span class="tm">${esc(t.tm)}</span>
+      <span class="m"><span class="en en-${t.e}">${t.e==="Med"?"Medium":t.e}</span><span>${esc(NAMES[t.c]||t.c)}</span>
+        ${t.u?`<a href="${esc(t.u)}" target="_blank" rel="noopener">${esc(t.w)}</a>`:`<span>${esc(t.w||"")}</span>`}</span>
+    </label>${t.tut?`<div class="subs">
+      <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}>Attempted</label>
+      <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}>Marked</label>
+    </div>`:""}<div class="tl"><span>Time spent</span><input type="number" min="0" step="5" inputmode="numeric" data-tm="${i}" value="${spent(t)||""}" aria-label="Minutes spent on ${esc(t.t)}"><span>min</span><span class="plan">planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
+}
+function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); }
+document.getElementById("phases").addEventListener("click", e=>{
+  const b=e.target.closest(".ph"); if(!b) return; shown=+b.dataset.i; store.set("epm-phase-view", shown); renderPhases();
+});
+document.querySelector(".filters").addEventListener("click", e=>{
+  const b=e.target.closest(".chip"); if(!b) return; energy=b.dataset.en;
+  document.querySelectorAll(".chip[data-en]").forEach(c=>c.setAttribute("aria-pressed", c===b)); renderTasks();
+});
+function syncCourseChips(){
+  document.querySelectorAll(".chip[data-co]").forEach(c=>c.setAttribute("aria-pressed", c.dataset.co===course));
+  document.getElementById("sortc").setAttribute("aria-pressed", sortByCourse);
+}
+document.getElementById("cfilters").addEventListener("click", e=>{
+  const b=e.target.closest(".chip"); if(!b) return;
+  if (b.id==="sortc") { sortByCourse=!sortByCourse; store.set("epm-sortc", sortByCourse); }
+  else { course=b.dataset.co; store.set("epm-course", course); }
+  syncCourseChips(); renderTasks();
+});
+syncCourseChips();
+document.getElementById("tasks").addEventListener("change", e=>{
+  if (e.target.dataset.tm!==undefined) {
+    const t=DATA.menu[+e.target.dataset.tm], v=Math.max(0, parseFloat(e.target.value)||0);
+    if (v) timeLog[key(t)] = v; else delete timeLog[key(t)];
+    store.set("epm-time", timeLog); refresh(); return;
+  }
+  const i=e.target.dataset.i; if(i===undefined) return; const t=DATA.menu[+i], on=e.target.checked;
+  if (t.tut) {
+    const st = {...tst(t)}, sub = e.target.dataset.sub;
+    if (sub==="a") { st.a = on; if (!on) st.m = false; }          // unticking attempted clears marked
+    else if (sub==="m") { st.m = on; if (on) st.a = true; }       // marking implies attempted
+    else { st.m = on; if (on) st.a = true; }                      // main box = marked
+    tutState[key(t)] = st; saveTut(); refresh(); return;
+  }
+  if (t.v) { t.v.forEach(([c,s])=>setWatched(c,s,on)); saveWatch(); }
+  on ? doneSet.add(key(t)) : doneSet.delete(key(t)); store.set("epm-done",[...doneSet]);
+  refresh();
+});
+
+document.getElementById("tips").innerHTML = DATA.tips.map(([a,b])=>`<div><b>${esc(a)}</b><p>${esc(b)}</p></div>`).join("");
+
+// course ledgers
+function fmtDates(c, r){
+  const groups=[]; r.dates.forEach(s=>{const x=d(s), m=MON[x.getMonth()], g=groups[groups.length-1];
+    const w=isWatched(c.code,r,s), past=x<TODAY;
+    const cls = w ? "dw" : past ? "db" : "du";
+    const lab = `${fmt(x)}: ${w?"watched":past?"not watched yet":"upcoming"}. Click to ${w?"mark as not watched":"mark as watched"}`;
+    const day = `<button class="dt ${cls}" data-c="${c.code}" data-s="${s}" title="${lab}" aria-label="${lab}" aria-pressed="${w}">${x.getDate()}</button>`;
+    if(g&&g.m===m) g.days.push(day); else groups.push({m,days:[day]});});
+  return groups.map(g=>g.days.join(" ")+" "+g.m).join("; ");
+}
+function status(c, r){
+  let behind=0, tocome=0;
+  r.dates.forEach(s=>{const w=isWatched(c.code,r,s); if(d(s)<TODAY){if(!w)behind++;} else if(!w) tocome++;});
+  if (behind) return `<span class="pill p-todo">${behind} to watch</span>`;
+  if (!tocome) return `<span class="pill p-done">Watched</span>`;
+  if (tocome===r.dates.length) return `<span class="pill p-up">Upcoming</span>`;
+  return `<span class="pill p-up">${tocome} to come</span>`;
+}
+function renderCourses(){
+  document.getElementById("courses").innerHTML = DATA.courses.map(c=>{
+    const e=d(c.exam), hasS1=c.rows.some(r=>r.sem===1), s=stats(c); let rows="", last=null;
+    c.rows.forEach(r=>{
+      const sem = r.sem===1?"First semester":"Second semester";
+      if(hasS1&&sem!==last){rows+=`<tr class="semrow"><td colspan="4">${sem}</td></tr>`; last=sem;}
+      rows+=`<tr><td class="topic">${esc(r.topic)}${r.sub?`<span class="sub">${esc(r.sub)}</span>`:""}</td>
+        <td class="n">${r.dates.length}</td><td class="dates">${fmtDates(c,r)}</td><td>${status(c,r)}</td></tr>`;
+    });
+    const t = DATA.tuts[c.code];
+    const tdone = t ? t[4] + tutsDone(c.code) : 0;
+    return `<section id="${c.code}">
+      <div class="shead"><h2><span class="code">${c.code}</span>${esc(c.name)}</h2>
+        <div class="when">Exam <b>${fmt(e)}, ${c.time}</b> · ${esc(c.venue)}, seat ${c.seat}</div></div>
+      <p class="lever">${esc(c.lever)}</p>
+      <div class="facts">
+        <span><b>${s.behind}</b> videos behind (${s.vhrs.toFixed(1)} h at ${c.vlen} h each)</span>
+        <span><b>${s.tocome}</b> videos still to come</span>
+        ${t?`<span><b>${t[1]}</b> tutorials found · <b>${tdone}</b> done · <b>${s.tOut}</b> outstanding</span>`:""}
+        <span>Target <b>${c.target}%</b> · exam needs <b>${c.need.toFixed(1)}%</b></span>
+      </div>
+      <div class="tbl"><table><thead><tr><th>Topic</th><th style="text-align:right">Videos</th><th>Dates (orange = not watched · click a date to change it)</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+    </section>`;
+  }).join("");
+}
+document.getElementById("courses").addEventListener("click", e=>{
+  const b=e.target.closest(".dt"); if(!b) return;
+  setWatched(b.dataset.c, b.dataset.s, b.getAttribute("aria-pressed")!=="true"); saveWatch();
+  const y=window.scrollY; refresh(); window.scrollTo(0,y);
+  const nb=document.querySelector(`.dt[data-c="${b.dataset.c}"][data-s="${b.dataset.s}"]`); if(nb) nb.focus({preventScroll:true});
+});
+
+renderStrip(); renderPhases(); renderCourses();
+
+// ---- moving progress between the old page, this site and other devices ----
+const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-donedate","epm-course","epm-sortc","epm-phase-view"];
+document.getElementById("snippet").textContent =
+  'copy(JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith("epm-")).map(k=>[k,JSON.parse(localStorage.getItem(k))]))))';
+const ioMsg = t => { document.getElementById("syncmsg").textContent = t; };
+document.getElementById("doexport").addEventListener("click", ()=>{
+  const out = {}; IO_KEYS.forEach(k=>{ const v = store.get(k, undefined); if (v !== undefined) out[k] = v; });
+  const txt = JSON.stringify(out);
+  document.getElementById("iotext").value = txt;
+  try { navigator.clipboard.writeText(txt); ioMsg("Copied to clipboard. Paste it into Import on the other device."); }
+  catch(e) { ioMsg("Copy the text in the box above."); }
+});
+document.getElementById("doimport").addEventListener("click", ()=>{
+  let got;
+  try { got = JSON.parse(document.getElementById("iotext").value.trim()); } catch(e) { ioMsg("That isn't valid progress data. Copy it again and paste the whole thing."); return; }
+  if (!got || typeof got !== "object" || !IO_KEYS.some(k=>k in got)) { ioMsg("No Exam Prep Map progress found in that text."); return; }
+  const hasLocal = ["epm-done","epm-watch","epm-tut","epm-time"].some(k=>Object.keys(store.get(k, {})).length);
+  if (hasLocal && !confirm("Replace the ticks already saved on this site with the pasted ones?")) return;
+  // clear first, so the one-off first-run steps above run again for anything the paste doesn't include
+  IO_KEYS.forEach(k=>{ try { localStorage.removeItem(k); } catch(e) {} });
+  IO_KEYS.forEach(k=>{
+    if (!(k in got)) return;
+    let v = got[k];
+    if (typeof v === "string" && k !== "epm-course") { try { v = JSON.parse(v); } catch(e) {} }   // raw localStorage strings
+    store.set(k, v);
+  });
+  // anything stamped as finished today came across with the import, not from work done today
+  const dd = store.get("epm-donedate", null);
+  if (dd) { Object.keys(dd).forEach(k=>{ if (dd[k] === TKEY) dd[k] = "seed"; }); store.set("epm-donedate", dd); }
+  store.set("epm-import-seed", true);
+  location.reload();
+});
+</script>
+</body>
+</html>
