@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-19.18">
+<meta name="build" content="2026-10-19.19">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -512,7 +512,10 @@ let shown = store.get("epm-phase-view", null); if (shown===null || shown>=DATA.p
 let course = store.get("epm-course", "all"), sortByCourse = store.get("epm-sortc", false);
 const CORDER = ["FTX4056S","ACC3009W","ACC3004W","FTX4087S"];
 
-function phaseTotal(i){ return DATA.menu.filter(t=>t.p===i+1).reduce((a,t)=>a+(spent(t) || planMin(t)),0); }  // logged time where entered, planned time otherwise
+// estimate = time already logged + time still to do, task by task:
+//   finished: what you logged (planned if you logged nothing) · not finished: logged so far, or the plan if that's more
+function taskEstimate(t){ const s = spent(t), p = planMin(t); return taskDone(t) ? (s || p) : Math.max(s, p); }
+function phaseTotal(i){ return DATA.menu.filter(t=>t.p===i+1).reduce((a,t)=>a+taskEstimate(t),0); }
 // what is still ahead in a phase, and how that spreads over the days it has left
 function renderPhaseTotals(){
   document.querySelectorAll("#phases .ph").forEach((b,i)=>{ const e=b.querySelector(".ptot"); if(e) e.textContent = "\u2248 " + fmtMin(phaseTotal(i)) + " total"; });
