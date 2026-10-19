@@ -235,6 +235,17 @@ const now = new Date(); const TODAY = new Date(now.getFullYear(), now.getMonth()
 const daysTo = s => Math.round((d(s)-TODAY)/864e5);
 const fmt = x => `${DOW[x.getDay()]} ${x.getDate()} ${MON[x.getMonth()]}`;
 const store = { get(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return f}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
+// tasks moved between phases carry `was` (their old phase): move their saved ticks from "old|title" to "new|title"
+(function carryMoved(){
+  const moves = DATA.menu.filter(t=>t.was && t.was!==t.p).map(t=>[t.was+"|"+t.t, t.p+"|"+t.t]);
+  const done = store.get("epm-done", null);
+  if (done) { const s=new Set(done); let ch=false; moves.forEach(([a,b])=>{ if(s.has(a)){ s.delete(a); s.add(b); ch=true; } }); if(ch) store.set("epm-done",[...s]); }
+  ["epm-tut","epm-time","epm-donedate"].forEach(k=>{
+    const o=store.get(k,null); if(!o) return; let ch=false;
+    moves.forEach(([a,b])=>{ if(a in o){ if(!(b in o)) o[b]=o[a]; delete o[a]; ch=true; } });
+    if(ch) store.set(k,o);
+  });
+})();
 const NAMES = {FTX4056S:"Applied Investments",ACC3009W:"FR III",ACC3004W:"Tax II",FTX4087S:"Banking",Video:"New videos"};
 
 document.getElementById("asat").textContent = "Today · " + fmt(TODAY) + " " + TODAY.getFullYear();
