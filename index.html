@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-19.14">
+<meta name="build" content="2026-10-19.15">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -71,8 +71,7 @@ header{display:grid;gap:6px;margin-bottom:28px}
 .kv dd.need{color:var(--todo)}
 
 /* phases */
-.phases{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;margin:14px 0 18px}
-@media (max-width:860px){.phases{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px;margin:14px 0 18px}
 @media (max-width:460px){.phases{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .ph{border:1px solid var(--rule);border-radius:8px;padding:8px 10px;background:var(--surface);text-align:left;font:inherit;color:inherit;cursor:pointer;display:grid;gap:2px;min-width:0}
 .ph b{font-family:var(--display);font-stretch:85%;font-size:15px;line-height:1.15}
@@ -358,10 +357,8 @@ window.addEventListener("error", e=>{
 <script>document.write('<script src="data.js?v=' + document.querySelector('meta[name="build"]').content + '"><\/script>');</script>
 <script>
 const DATA = window.DATA;
-// tolerate an older cached data.js: ids follow the same k### numbering, phase dates fall back to the original ones
+// tolerate an older data.js without ids: they follow the same k### numbering
 DATA.menu.forEach((t,i)=>{ if (!t.id) t.id = "k" + String(i).padStart(3,"0"); });
-[["2026-10-12","2026-10-22"],["2026-10-23","2026-10-29"],["2026-10-30","2026-11-04"],["2026-11-05","2026-11-12"],["2026-11-13","2026-11-15"],["2026-11-16","2026-11-19"]]
-  .forEach(([a,b],i)=>{ const p = DATA.phases[i]; if (p && !p.start) { p.start = a; p.end = b; } });
 let PHASE_DATES = [];
 const syncPhaseDates = () => { PHASE_DATES = DATA.phases.map(p=>[p.start, p.end]); };
 const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -395,6 +392,12 @@ const store = { get(k,f){try{const v=localStorage.getItem(k);return v===null?f:J
 const edits = Object.assign({phases:{}, tasks:{}, added:[], deleted:[]}, store.get("epm-edits", {}) || {});
 function saveEdits(){ store.set("epm-edits", edits); }
 (function applyEdits(){
+  // a new phase plan in data.js replaces phase edits and task moves made against the previous plan
+  if (DATA.phasePlan && edits.phasePlan !== DATA.phasePlan) {
+    edits.phases = {};
+    Object.values(edits.tasks).forEach(p=>{ delete p.p; });
+    edits.phasePlan = DATA.phasePlan; saveEdits();
+  }
   Object.entries(edits.phases).forEach(([i,p])=>{ if (DATA.phases[i]) Object.assign(DATA.phases[i], p); });
   edits.added.forEach(t=>{ if (!DATA.menu.some(x=>x.id===t.id)) DATA.menu.push({...t}); });
   DATA.menu.forEach(t=>{ if (edits.tasks[t.id]) Object.assign(t, edits.tasks[t.id]); });
@@ -648,7 +651,7 @@ function renderPhases(){
   document.getElementById("phases").innerHTML = DATA.phases.map((p,i)=>
     `<button class="ph${i===current?" now":""}" aria-pressed="${i===shown}" data-i="${i}">
        ${i===current?'<span class="tag">You are here</span>':'<span class="tag" style="visibility:hidden">·</span>'}
-       <b>${esc(p.name)}</b><span>${fmtRange(p.start, p.end)}</span><span class="ptot">≈ ${fmtMin(phaseTotal(i))} total</span></button>`).join("");
+       <b>${esc(p.name)}</b><span>${esc(p.label || fmtRange(p.start, p.end))}</span><span class="ptot">≈ ${fmtMin(phaseTotal(i))} total</span></button>`).join("");
   const p = DATA.phases[shown];
   document.getElementById("goal").textContent = p.goal + " Total time needed: about " + fmtMin(phaseTotal(shown)) + " (" + DATA.menu.filter(t=>t.p===shown+1).length + " tasks).";
   renderPace();
@@ -757,11 +760,12 @@ document.getElementById("phaseedit").addEventListener("change", e=>{
   const start = f==="start" ? v : p.start, end = f==="end" ? v : p.end;
   if (start > end) { alert("A phase can't end before it starts."); e.target.value = p[f]; return; }
   p[f] = v; edits.phases[shown] = Object.assign(edits.phases[shown]||{}, {[f]: v});
+  if (f === "start" || f === "end") { p.label = ""; edits.phases[shown].label = ""; }   // the plan's date label no longer fits
   // keep phases from overlapping: a later end pushes the next phase's start to the day after
   const nx = DATA.phases[shown+1];
   if (f === "end" && nx && nx.start <= v) {
     const s = d(v); s.setDate(s.getDate()+1); const ns = ymd(s);
-    if (ns <= nx.end) { nx.start = ns; edits.phases[shown+1] = Object.assign(edits.phases[shown+1]||{}, {start: ns}); }
+    if (ns <= nx.end) { nx.start = ns; nx.label = ""; edits.phases[shown+1] = Object.assign(edits.phases[shown+1]||{}, {start: ns, label: ""}); }
   }
   saveEdits();
   syncPhaseDates(); findCurrent(); renderPhases(); refresh();
