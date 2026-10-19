@@ -4,6 +4,20 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<meta name="build" content="2026-10-19.12">
+<script>
+// browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
+(function(){
+  const mine = document.querySelector('meta[name="build"]').content;
+  if (location.search.includes("v=")) history.replaceState(null, "", location.pathname + location.hash);
+  fetch(location.pathname + "?check=" + Date.now(), {cache: "no-store"}).then(r=>r.text()).then(h=>{
+    const m = h.match(/name="build" content="([^"]+)"/);
+    if (!m || m[1] === mine) return;
+    try { if (sessionStorage.getItem("epm-reload") === m[1]) return; sessionStorage.setItem("epm-reload", m[1]); } catch(e) {}
+    location.replace(location.pathname + "?v=" + encodeURIComponent(m[1]) + location.hash);
+  }).catch(()=>{});
+})();
+</script>
 <title>Exam Prep Map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
@@ -341,7 +355,7 @@ window.addEventListener("error", e=>{
   document.body.prepend(b);
 });
 </script>
-<script src="data.js?v=6"></script>
+<script>document.write('<script src="data.js?v=' + document.querySelector('meta[name="build"]').content + '"><\/script>');</script>
 <script>
 const DATA = window.DATA;
 // tolerate an older cached data.js: ids follow the same k### numbering, phase dates fall back to the original ones
