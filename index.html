@@ -151,6 +151,19 @@ body{margin:0}
 .btn{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 12px;font:600 13px var(--body);cursor:pointer}
 .btn:hover{border-color:var(--accent)}
 #syncmsg{font-weight:600;color:var(--done)}
+.tbar.seg{display:flex;gap:2px;height:10px}
+.tseg{border:0;padding:0;height:100%;cursor:pointer;flex:none;min-width:4px}
+.tseg[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:1px}
+.tleg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.tchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:var(--surface);color:var(--muted);border-radius:999px;padding:2px 10px;font:12.5px var(--body);cursor:pointer}
+.tchip b{color:var(--ink)}
+.tchip[aria-pressed="true"]{border-color:var(--ink)}
+.tdetail{margin-top:8px;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:8px 12px;font-size:13.5px}
+.tdetail ul{list-style:none;margin:4px 0 0;padding:0}
+.tdetail li{display:flex;justify-content:space-between;gap:12px;padding:3px 0;border-top:1px solid var(--rule)}
+.tdetail li span:last-child{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+.tdetail em{font-style:normal;color:var(--done);font-size:12px}
+.sess.ro{padding:2px 10px}
 .sess{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);color:var(--ink);border-radius:8px;padding:2px 2px 2px 4px;font-size:12.5px;white-space:nowrap}
 .tl .sess input{width:52px;padding:2px 4px;font-size:12.5px}
 .sess select{font:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid color-mix(in srgb, currentColor 35%, transparent);border-radius:6px;padding:2px 3px}
@@ -235,7 +248,7 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   <div class="strip" id="strip"></div>
 
   <section id="now" style="margin-top:0">
-    <div class="shead"><h2>Where you are</h2><span class="when"><span id="nowline"></span> <button class="btn editbtn" id="editbtn" aria-pressed="false">Edit plan</button></span></div>
+    <div class="shead"><h2>Where you are</h2><span class="when"><span id="nowline"></span> <button class="btn editbtn" id="logbtn" aria-pressed="false" title="Change time and ticks already recorded">Edit log</button> <button class="btn editbtn" id="editbtn" aria-pressed="false">Edit plan</button></span></div>
     <div class="phaseedit" id="phaseedit" hidden>
       <p class="note-small" style="margin:0 0 4px">Editing the selected phase. Changes save as you go, on this device; Export at the bottom carries them to another device. Drag a task's handle onto a phase button above to move it, or use its phase menu.</p>
       <div class="pe-grid">
@@ -518,11 +531,17 @@ function whenOptions(sel){
   if (sel && !o.some(([v])=>v===sel)) o.splice(o.length-1, 0, [sel, fmt(d(sel))]);
   return o.map(([v,l])=>`<option value="${v}"${v===sel?" selected":""}>${l}</option>`).join("");
 }
+// what's already recorded is read-only unless "Edit log" is on; new time can only be logged for today
+let logEdit = false;
+const dayLabel = s => s === "seed" ? "earlier" : s === TKEY ? "today" : fmt(d(s));
 function doneLabel(t, i){
   if (!taskDone(t)) return "";
   const dd = doneDate[key(t)] || TKEY;
+  if (!logEdit) return `Done ${dayLabel(dd)} · `;
   return `Done <select class="redate" data-redate="${i}" aria-label="When you finished ${esc(t.t)}">${whenOptions(dd)}</select> · `;
 }
+// a task finished on an earlier day can't be unticked without Edit log
+const lockedDone = t => !logEdit && taskDone(t) && (doneDate[key(t)] || TKEY) !== TKEY;
 if (store.get("epm-donedate", null) === null) {       // first run: existing ticks predate today
   DATA.menu.forEach(t=>{ if (taskDone(t)) doneDate[key(t)] = "seed"; });
   store.set("epm-donedate", doneDate);
@@ -566,18 +585,41 @@ function minutesByDay(){
   });
   return out;
 }
+// the work counted on one day, task by task (same rule as minutesByDay)
+function itemsOn(day){
+  const out = [];
+  DATA.menu.forEach(t=>{
+    const dated = sess(t).filter(s=>s[0] !== "seed");
+    if (dated.length) { const m = dated.filter(s=>s[0]===day).reduce((a,s)=>a+(+s[1]||0),0); if (m) out.push({t, m}); }
+    else if (taskDone(t) && doneDate[key(t)] === day) out.push({t, m: planMin(t)});
+  });
+  return out;
+}
+let todaySel = null;   // course whose work today is listed under the bar
 function renderToday(i){
   syncDoneDates();
-  const did = Object.values(minutesByDay()[TKEY] || {}).reduce((a,m)=>a+m,0);
+  const items = itemsOn(TKEY), byC = {};
+  items.forEach(({t,m})=>{ byC[t.c] = (byC[t.c]||0) + m; });
+  const did = items.reduce((a,x)=>a+x.m,0);
   const left = phaseLeft(i);
   const need = left ? left / daysLeft(i) : 0;
   const el = document.getElementById("today");
   if (!left && !did) { el.innerHTML = ""; return; }
-  const pct = need ? Math.min(100, Math.round(did/need*100)) : 100;
-  el.innerHTML = `<div class="tbar"><span style="width:${pct}%"></span></div>
+  const scale = Math.max(need, did) || 1, cs = CORDER.filter(c=>byC[c]);
+  if (todaySel && !byC[todaySel]) todaySel = null;
+  const detail = todaySel ? `<div class="tdetail"><b>${SHORT[todaySel]} today \u00b7 ${fmtMin(byC[todaySel])}</b><ul>` +
+      items.filter(x=>x.t.c===todaySel).map(({t,m})=>`<li><span>${esc(t.t)}${taskDone(t)?" <em>\u2713 finished</em>":""}</span><span>${fmtMin(m)}</span></li>`).join("") +
+      `</ul></div>` : "";
+  el.innerHTML = `<div class="tbar seg">` + cs.map(c=>
+      `<button class="tseg" data-c="${c}" style="width:${byC[c]/scale*100}%;background:var(${CVAR[c]})" aria-pressed="${c===todaySel}" aria-label="${SHORT[c]}: ${fmtMin(byC[c])} today. Show what you did" title="${SHORT[c]}: ${fmtMin(byC[c])}"></button>`).join("") + `</div>
     <div class="tnum"><b>${fmtMin(did)}</b> done today of <b>${fmtMin(need)}</b> needed
-      <span class="tsub">\u00b7 today's share of what's left in this phase</span></div>`;
+      <span class="tsub">\u00b7 today's share of what's left in this phase</span></div>` +
+    (cs.length ? `<div class="tleg">` + cs.map(c=>`<button class="tchip" data-c="${c}" aria-pressed="${c===todaySel}"><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]} <b>${fmtMin(byC[c])}</b></button>`).join("") + `</div>` : "") + detail;
 }
+document.getElementById("today").addEventListener("click", e=>{
+  const b = e.target.closest("[data-c]"); if (!b) return;
+  todaySel = todaySel === b.dataset.c ? null : b.dataset.c; renderToday(shown);
+});
 function renderPace(){ document.getElementById("pace").innerHTML = paceLine(shown); renderToday(shown); }
 function paceLine(i){
   const left = phaseLeft(i), end = d(PHASE_DATES[i][1]);
@@ -617,19 +659,23 @@ function renderTasks(){
     : `${shownDone} of ${list.length} shown done · ${n} of ${all.length} in this phase`) + timeTxt;
   document.getElementById("tasks").innerHTML = list.map(t=>{
     const i=DATA.menu.indexOf(t), id="t"+i, dn=taskDone(t);
+    const lock = lockedDone(t) ? ` disabled title="Finished ${dayLabel(doneDate[key(t)])}. Use Edit log to change it."` : "";
     let part = "";
     if (t.v && !dn){ const w=t.v.filter(([c,s])=>watchedCS(c,s)).length; if (w) part=` <span class="part">${w} of ${t.v.length} watched</span>`; }
     return `<li class="${dn?"done":""}"><label for="${id}">
-      <input type="checkbox" id="${id}" data-i="${i}" ${dn?"checked":""}>
+      <input type="checkbox" id="${id}" data-i="${i}" ${dn?"checked":""}${lock}>
       <span class="t">${t.note?`<span class="nb">Notes</span>`:""}${esc(t.note?t.t.replace(/^Notes:\s*/,""):t.t)}${part}</span><span class="tm">${esc(t.tm)}</span>
       <span class="m"><span class="en en-${t.e}">${t.e==="Med"?"Medium":t.e}</span><span>${esc(NAMES[t.c]||t.c)}</span>${t.memo?`<span><b>${esc(t.memo)}</b></span>`:""}
         ${t.u?`<a href="${esc(t.u)}" target="_blank" rel="noopener">${esc(t.w)}</a>`:`<span>${esc(t.w||"")}</span>`}</span>
     </label>${t.tut?`<div class="subs">
-      <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}>Attempted</label>
-      <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}>Marked</label>
-    </div>`:""}<div class="tl"><span>Time spent</span>${sess(t).map((s,j)=>
-      `<span class="sess"><input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>`).join("")}
-      <span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)}"><select data-sd="${i}" aria-label="Day you spent them">${whenOptions(TKEY)}</select><button class="btn sbtn" data-sadd="${i}">Add</button></span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
+      <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}${lock}>Attempted</label>
+      <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}${lock}>Marked</label>
+    </div>`:""}<div class="tl"><span>Time spent</span>${sess(t).map((s,j)=> logEdit ?
+      `<span class="sess"><input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>` :
+      `<span class="sess ro">${fmtMin(+s[1])} ${dayLabel(s[0])}</span>`).join("")}
+      <span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)} ${logEdit?"":"today"}">${logEdit ?
+        `<select data-sd="${i}" aria-label="Day you spent them">${whenOptions(TKEY)}</select>` :
+        `<input type="hidden" data-sd="${i}" value="${TKEY}"><span>today</span>`}<button class="btn sbtn" data-sadd="${i}">Add</button></span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
@@ -683,6 +729,12 @@ function setEditing(on){
   renderPhases(); refresh();
 }
 document.getElementById("editbtn").addEventListener("click", ()=>setEditing(!editing));
+document.getElementById("logbtn").addEventListener("click", ()=>{
+  logEdit = !logEdit;
+  const b = document.getElementById("logbtn");
+  b.setAttribute("aria-pressed", logEdit); b.textContent = logEdit ? "Done editing log" : "Edit log";
+  refresh();
+});
 document.getElementById("phaseedit").addEventListener("change", e=>{
   const f = e.target.dataset.pf; if (!f) return;
   const p = DATA.phases[shown], v = e.target.value.trim();
