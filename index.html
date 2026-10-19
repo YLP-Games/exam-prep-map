@@ -243,7 +243,7 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   <div id="courses"></div>
 
   <section id="work">
-    <div class="shead"><h2>Work done per day</h2><span class="when">Last 14 days</span></div>
+    <div class="shead"><h2>Work done per day</h2><span class="when" id="wkwhen"></span></div>
     <div class="wk-hero" id="wkhero"></div>
     <div class="wk" id="wk">
       <div class="wk-plot" id="wkplot"></div>
@@ -311,7 +311,10 @@ const wk = (code, s) => code + "|" + s;
 function isWatched(code, r, s){
   const k = wk(code, s);
   if (k in watchMap) return watchMap[k];
-  return d(s) < ASAT && !r.behind.includes(s);        // spreadsheet status as of the as-at date
+  return defWatched(r, s);
+}
+function defWatched(r, s){                           // spreadsheet status as of the as-at date, plus lectures reported watched since (r.watched)
+  return (r.watched || []).includes(s) || (d(s) < ASAT && !r.behind.includes(s));
 }
 const rowOf = (code, s) => DATA.courses.find(c=>c.code===code).rows.find(r=>r.dates.includes(s));
 const watchedCS = (code, s) => isWatched(code, rowOf(code, s), s);
@@ -347,7 +350,7 @@ function saveTut(){ store.set("epm-tut", tutState); }
 const tst = t => tutState[key(t)] || t.st || {a:false, m:false};   // t.st: status reported outside the site, until you tick it yourself
 // time spent per task (minutes), kept in this browser
 const timeLog = store.get("epm-time", {});
-const spent = t => timeLog[key(t)] || 0;
+const spent = t => timeLog[key(t)] || (t.sessions || []).reduce((a,s)=>a+s[1],0);   // t.sessions: [date, minutes] reported outside the site
 function planMin(t){ const m=(t.tm||"").match(/[0-9.]+/); if(!m) return 0; const n=parseFloat(m[0]); return /min/.test(t.tm) ? n : n*60; }
 function fmtMin(m){ m=Math.round(m); const h=Math.floor(m/60), r=m%60; return h ? h+"h "+String(r).padStart(2,"0")+"m" : r+"m"; }
 // one-off: tutorial tasks ticked before the attempted/marked boxes existed count as marked
@@ -362,7 +365,7 @@ if (store.get("epm-watch", null) === null) {
   saveWatch();
 }
 function setWatched(code, s, val){
-  const r = rowOf(code, s); const def = d(s) < ASAT && !r.behind.includes(s);
+  const r = rowOf(code, s); const def = defWatched(r, s);
   if (val === def) delete watchMap[wk(code,s)]; else watchMap[wk(code,s)] = val;
 }
 
@@ -431,11 +434,20 @@ if (store.get("epm-import-seed", false)) {           // just imported: nothing t
   store.set("epm-donedate", doneDate);
   try { localStorage.removeItem("epm-import-seed"); } catch(e) {}
 }
+{ // a finish date reported in the data (t.dd) replaces "seed" once; after that, your own change wins
+  const applied = new Set(store.get("epm-dd-applied", []));
+  DATA.menu.forEach(t=>{
+    const k = key(t); if (!t.dd || applied.has(k)) return;
+    if (doneDate[k] === "seed") doneDate[k] = t.dd;
+    applied.add(k);
+  });
+  store.set("epm-donedate", doneDate); store.set("epm-dd-applied", [...applied]);
+}
 function syncDoneDates(){
   let changed = false;
   DATA.menu.forEach(t=>{
     const k = key(t), d = taskDone(t);
-    if (d && !doneDate[k]) { doneDate[k] = tickWhen; changed = true; }
+    if (d && !doneDate[k]) { doneDate[k] = t.dd || tickWhen; changed = true; }
     else if (!d && doneDate[k]) { delete doneDate[k]; changed = true; }
   });
   if (changed) store.set("epm-donedate", doneDate);
@@ -610,13 +622,16 @@ const CVAR = {FTX4056S:"--c1",ACC3009W:"--c2",ACC3004W:"--c3",FTX4087S:"--c4"};
 const SHORT = {FTX4056S:"Applied",ACC3009W:"FR III",ACC3004W:"Tax II",FTX4087S:"Banking"};
 let wkDays = [], wkSel = -1;
 function renderWork(){
-  const N = 14; wkDays = [];
-  for (let k=N-1; k>=0; k--) { const x = new Date(TODAY); x.setDate(x.getDate()-k); wkDays.push({x, key:ymd(x), by:{}, tot:0}); }
+  // every day from DATA.chartFrom (or the last 14 days) up to today
+  wkDays = [];
+  const from = DATA.chartFrom ? d(DATA.chartFrom) : new Date(TODAY.getFullYear(), TODAY.getMonth(), TODAY.getDate()-13);
+  for (let x = new Date(from); x <= TODAY; x.setDate(x.getDate()+1)) wkDays.push({x:new Date(x), key:ymd(x), by:{}, tot:0});
+  const N = wkDays.length;
   const at = Object.fromEntries(wkDays.map((w,i)=>[w.key,i]));
+  const add = (day, c, m) => { if (!(day in at)) return; const w = wkDays[at[day]]; w.by[c] = (w.by[c]||0) + m; w.tot += m; };
   DATA.menu.forEach(t=>{
-    const dd = doneDate[key(t)]; if (!(dd in at)) return;
-    const w = wkDays[at[dd]], m = planMin(t);
-    w.by[t.c] = (w.by[t.c]||0) + m; w.tot += m;
+    if (t.sessions && !timeLog[key(t)]) t.sessions.forEach(([day,m])=>add(day, t.c, m));   // known minutes on known days
+    else add(doneDate[key(t)], t.c, planMin(t));                                           // otherwise planned time on the day it was finished
   });
   const max = Math.max(...wkDays.map(w=>w.tot));
   const step = max > 6*60 ? 120 : 60, top = Math.max(step, Math.ceil(max/step)*step);
@@ -626,15 +641,17 @@ function renderWork(){
     `<div class="wk-col${i===wkSel?" sel":""}" data-i="${i}" tabindex="0" aria-label="${fmt(w.x)}: ${fmtMin(w.tot)}">` +
     CORDER.filter(c=>w.by[c]).map(c=>`<i style="height:calc(${w.by[c]/top*100}% - 2px);background:var(${CVAR[c]})"></i>`).join("") + `</div>`).join("");
   document.getElementById("wkx").innerHTML = wkDays.map((w,i)=>{
-    const lab = DOW[w.x.getDay()][0] + "<br>" + w.x.getDate();
+    const show = N <= 16 || w.x.getDay() === 1 || i === N-1;          // long ranges: label Mondays and today only
+    const lab = show ? DOW[w.x.getDay()][0] + "<br>" + w.x.getDate() : "";
     return `<span>${i===N-1 ? "<b>"+lab+"</b>" : lab}</span>`;
   }).join("");
   // headline numbers: today, and the average since the first day with anything recorded
-  const first = wkDays.findIndex(w=>w.tot>0);
-  const span = first<0 ? 0 : N-first, sum = wkDays.reduce((a,w)=>a+w.tot,0);
+  const sum = wkDays.reduce((a,w)=>a+w.tot,0);
+  document.getElementById("wkwhen").textContent = "Since " + fmt(wkDays[0].x);
   document.getElementById("wkhero").innerHTML =
     `<div><span class="label">Today</span><b>${fmtMin(wkDays[N-1].tot)}</b></div>` +
-    `<div><span class="label">Daily average${span&&span<N?` · since ${fmt(wkDays[first].x)}`:""}</span><b>${fmtMin(span?sum/span:0)}</b></div>`;
+    `<div><span class="label">Daily average</span><b>${fmtMin(sum/N)}</b></div>` +
+    `<div><span class="label">Total</span><b>${fmtMin(sum)}</b></div>`;
   const per = c => wkDays.reduce((a,w)=>a+(w.by[c]||0),0);
   document.getElementById("wklegend").innerHTML = CORDER.map(c=>
     `<span><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]} <b>${fmtMin(per(c))}</b></span>`).join("");
