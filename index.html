@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-19.16">
+<meta name="build" content="2026-10-19.17">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -255,7 +255,7 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   <header>
     <span class="asat" id="asat"></span>
     <h1>Exam Prep Map</h1>
-    <p class="lede">Your guide to 19 November. You watch the lecture videos and go to tutorials. Each phase has one goal and a menu of small tasks: pick by time and energy, tick them off, switch when you get bored. Your spreadsheet has the same menu with links to every file.</p>
+    <p class="lede">Your guide to 19 November. You watch the lecture videos and go to tutorials. Each phase has one goal and a menu of small tasks: pick by time, tick them off, switch when you get bored. Your spreadsheet has the same menu with links to every file.</p>
   </header>
 
   <div class="strip" id="strip"></div>
@@ -284,11 +284,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
       </div>
     </div>
     <div class="filters">
-      <span>Energy:</span>
-      <button class="chip" data-en="all" aria-pressed="true">Any</button>
-      <button class="chip" data-en="Low" aria-pressed="false">Low</button>
-      <button class="chip" data-en="Med" aria-pressed="false">Medium</button>
-      <button class="chip" data-en="High" aria-pressed="false">High</button>
       <span class="progress" id="progress"></span>
     </div>
     <div class="filters" id="cfilters">
@@ -514,7 +509,6 @@ function findCurrent(){
 }
 findCurrent();
 let shown = store.get("epm-phase-view", null); if (shown===null || shown>=DATA.phases.length) shown = current;
-let energy = "all";
 let course = store.get("epm-course", "all"), sortByCourse = store.get("epm-sortc", false);
 const CORDER = ["FTX4056S","ACC3009W","ACC3004W","FTX4087S"];
 
@@ -666,7 +660,7 @@ function renderTasks(){
   syncDoneDates();
   if (editing) { renderEditTasks(); return; }
   const all = DATA.menu.filter(t=>t.p===shown+1);
-  let list = all.filter(t=> (energy==="all" || t.e===energy) && (course==="all" || t.c===course));
+  let list = all.filter(t=> course==="all" || t.c===course);
   if (sortByCourse) list = list.map((t,k)=>[t,k]).sort((a,b)=>(CORDER.indexOf(a[0].c)-CORDER.indexOf(b[0].c))||(a[1]-b[1])).map(x=>x[0]);
   list = [...list.filter(t=>!taskDone(t)), ...list.filter(taskDone)];   // done sinks; attempted-only is not done
   const shownDone = list.filter(taskDone).length;
@@ -683,7 +677,7 @@ function renderTasks(){
     return `<li class="${dn?"done":""}"><label for="${id}">
       <input type="checkbox" id="${id}" data-i="${i}" ${dn?"checked":""}${lock}>
       <span class="t">${t.note?`<span class="nb">Notes</span>`:""}${esc(t.note?t.t.replace(/^Notes:\s*/,""):t.t)}${part}</span><span class="tm">${esc(t.tm)}</span>
-      <span class="m"><span class="en en-${t.e}">${t.e==="Med"?"Medium":t.e}</span><span>${esc(NAMES[t.c]||t.c)}</span>${t.memo?`<span><b>${esc(t.memo)}</b></span>`:""}
+      <span class="m"><span>${esc(NAMES[t.c]||t.c)}</span>${t.memo?`<span><b>${esc(t.memo)}</b></span>`:""}
         ${t.u?`<a href="${esc(t.u)}" target="_blank" rel="noopener">${esc(t.w)}</a>`:`<span>${esc(t.w||"")}</span>`}</span>
     </label>${t.tut?`<div class="subs">
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}${lock}>Attempted</label>
@@ -693,7 +687,7 @@ function renderTasks(){
       `<span class="sess ro">${fmtMin(+s[1])} ${dayLabel(s[0])}</span>`).join("")}
       ${lock ? "" : `<span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)} ${logEdit?"":"today"}">${logEdit ?
         `<select data-sd="${i}" aria-label="Day you spent them">${whenOptions(TKEY)}</select>` :
-        `<input type="hidden" data-sd="${i}" value="${TKEY}"><span>today</span>`}<button class="btn sbtn" data-sadd="${i}">Add</button></span>`}<span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
+        `<input type="hidden" data-sd="${i}" value="${TKEY}"><span>today</span>`}<button class="btn sbtn" data-sadd="${i}">Add</button></span>`}<span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks for this course in this phase. Try another course.</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
@@ -701,7 +695,7 @@ function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace();
 const KIND_OF = t => t.v ? "video" : t.tut ? "tut" : t.note ? "notes" : "practice";
 const opt = (pairs, sel) => pairs.map(([v,l])=>`<option value="${v}"${String(v)===String(sel)?" selected":""}>${l}</option>`).join("");
 function renderEditTasks(){
-  const all = DATA.menu.filter(t=>t.p===shown+1 && (course==="all" || t.c===course) && (energy==="all" || t.e===energy));
+  const all = DATA.menu.filter(t=>t.p===shown+1 && (course==="all" || t.c===course));
   document.getElementById("progress").textContent = `Editing ${all.length} task${all.length===1?"":"s"} in this phase`;
   const phases = DATA.phases.map((p,i)=>[i+1, "Phase "+(i+1)]);
   document.getElementById("tasks").innerHTML = all.map(t=>{
@@ -712,7 +706,6 @@ function renderEditTasks(){
         <input class="et" data-f="t" value="${esc(t.t)}" aria-label="Task title">
         <select data-f="p" aria-label="Phase">${opt(phases, t.p)}</select>
         <input class="etm" data-f="tm" value="${esc(t.tm)}" aria-label="Planned time, e.g. 45 min or 1.5 h">
-        <select data-f="e" aria-label="Energy">${opt([["Low","Low"],["Med","Medium"],["High","High"]], t.e)}</select>
         <select data-f="c" aria-label="Course">${opt(CORDER.map(c=>[c, SHORT[c]]), t.c)}</select>
         <button class="btn del" data-del="${t.id}" aria-label="Delete ${esc(t.t)}">Delete</button>
       </div>
@@ -722,7 +715,7 @@ function renderEditTasks(){
         <input data-f="w" value="${esc(t.w||"")}" placeholder="Link label" aria-label="Link label">
         <input data-f="u" value="${esc(t.u||"")}" placeholder="Link URL" aria-label="Link URL">
       </div></li>`;
-  }).join("") || `<li class="erow"><span class="note-small">No tasks in this phase${course!=="all"||energy!=="all"?" match the filters":""}. Use “Add a task” above.</span></li>`;
+  }).join("") || `<li class="erow"><span class="note-small">No tasks in this phase${course!=="all"?" for this course":""}. Use “Add a task” above.</span></li>`;
 }
 function setTaskField(id, f, v){
   const t = DATA.menu.find(x=>x.id===id); if (!t) return;
@@ -821,10 +814,6 @@ document.getElementById("phases").addEventListener("click", e=>{
   const b=e.target.closest(".ph"); if(!b) return; shown=+b.dataset.i; store.set("epm-phase-view", shown);
   if (editing) renderPhaseForm();
   renderPhases();
-});
-document.querySelector(".filters").addEventListener("click", e=>{
-  const b=e.target.closest(".chip"); if(!b) return; energy=b.dataset.en;
-  document.querySelectorAll(".chip[data-en]").forEach(c=>c.setAttribute("aria-pressed", c===b)); renderTasks();
 });
 function syncCourseChips(){
   document.querySelectorAll(".chip[data-co]").forEach(c=>c.setAttribute("aria-pressed", c.dataset.co===course));
