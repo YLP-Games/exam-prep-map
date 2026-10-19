@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-19.17">
+<meta name="build" content="2026-10-19.18">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -685,7 +685,7 @@ function renderTasks(){
     </div>`:""}<div class="tl"><span>Time spent</span>${sess(t).map((s,j)=> logEdit ?
       `<span class="sess"><input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>` :
       `<span class="sess ro">${fmtMin(+s[1])} ${dayLabel(s[0])}</span>`).join("")}
-      ${lock ? "" : `<span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)} ${logEdit?"":"today"}">${logEdit ?
+      ${dn && !logEdit ? "" : `<span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)} ${logEdit?"":"today"}">${logEdit ?
         `<select data-sd="${i}" aria-label="Day you spent them">${whenOptions(TKEY)}</select>` :
         `<input type="hidden" data-sd="${i}" value="${TKEY}"><span>today</span>`}<button class="btn sbtn" data-sadd="${i}">Add</button></span>`}<span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks for this course in this phase. Try another course.</span></label></li>`;
 }
