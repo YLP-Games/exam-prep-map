@@ -151,6 +151,13 @@ body{margin:0}
 .btn{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 12px;font:600 13px var(--body);cursor:pointer}
 .btn:hover{border-color:var(--accent)}
 #syncmsg{font-weight:600;color:var(--done)}
+.sess{display:inline-flex;align-items:center;gap:2px;background:var(--accent-soft);color:var(--ink);border-radius:999px;padding:1px 4px 1px 9px;font-size:12.5px;white-space:nowrap}
+.sess .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 4px}
+.sess .x:hover{color:var(--todo)}
+.sadd{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
+.tl .sadd input{width:62px}
+.sadd select{font:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid color-mix(in srgb, currentColor 35%, transparent);border-radius:6px;padding:3px 4px}
+.btn.sbtn{padding:3px 10px;font-size:12.5px}
 .whenbar select,select.redate{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:2px 6px}
 select.redate{font-size:12px;padding:1px 4px}
 .whenbar.away{background:var(--mark);color:var(--mark-ink);border-radius:8px;padding:6px 10px}
@@ -352,7 +359,7 @@ const store = { get(k,f){try{const v=localStorage.getItem(k);return v===null?f:J
     if (!Array.isArray(list)) list = typeof list === "object" ? Object.keys(list) : [];
     store.set(name, [...new Set(list.filter(k=>k!=null).map(conv))]);
   });
-  ["epm-tut","epm-time","epm-donedate","epm-watch"].forEach(name=>{
+  ["epm-tut","epm-time","epm-sessions","epm-donedate","epm-watch"].forEach(name=>{
     const o = store.get(name, null); if (o === null) return;
     if (typeof o !== "object" || Array.isArray(o)) { store.set(name, {}); return; }
     if (name === "epm-watch") return;
@@ -425,8 +432,18 @@ const tutState = store.get("epm-tut", {});           // task key -> {a: attempte
 function saveTut(){ store.set("epm-tut", tutState); }
 const tst = t => tutState[key(t)] || t.st || {a:false, m:false};   // t.st: status reported outside the site, until you tick it yourself
 // time spent per task (minutes), kept in this browser
-const timeLog = store.get("epm-time", {});
-const spent = t => timeLog[key(t)] || (t.sessions || []).reduce((a,s)=>a+s[1],0);   // t.sessions: [date, minutes] reported outside the site
+// time spent per task, as sessions on days: task id -> [["YYYY-MM-DD" or "seed" (earlier, no date), minutes], ...]
+const sessLog = store.get("epm-sessions", {});
+{ // the older single "minutes spent" number becomes one undated session
+  const timeLog = store.get("epm-time", {});
+  if (Object.keys(timeLog).length) {
+    Object.entries(timeLog).forEach(([id,m])=>{ if (!sessLog[id] && +m > 0) sessLog[id] = [["seed", +m]]; });
+    store.set("epm-sessions", sessLog); store.set("epm-time", {});
+  }
+}
+function saveSess(){ store.set("epm-sessions", sessLog); }
+const sess = t => sessLog[key(t)] || t.sessions || [];       // t.sessions: reported outside the site, until you log your own
+const spent = t => sess(t).reduce((a,s)=>a+(+s[1]||0),0);
 function planMin(t){ const m=(t.tm||"").match(/[0-9.]+/); if(!m) return 0; const n=parseFloat(m[0]); return /min/.test(t.tm) ? n : n*60; }
 function fmtMin(m){ m=Math.round(m); const h=Math.floor(m/60), r=m%60; return h ? h+"h "+String(r).padStart(2,"0")+"m" : r+"m"; }
 // one-off: tutorial tasks ticked before the attempted/marked boxes existed count as marked
@@ -525,18 +542,34 @@ if (store.get("epm-import-seed", false)) {           // just imported: nothing t
   });
   store.set("epm-donedate", doneDate); store.set("epm-dd-applied", [...applied]);
 }
+// t.dd (a date reported in the data) only applies to tasks already done when the page loads;
+// anything you tick yourself gets the day chosen in "Ticks count as done"
+let firstSync = true;
 function syncDoneDates(){
   let changed = false;
   DATA.menu.forEach(t=>{
     const k = key(t), d = taskDone(t);
-    if (d && !doneDate[k]) { doneDate[k] = t.dd || tickWhen; changed = true; }
+    if (d && !doneDate[k]) { doneDate[k] = (firstSync && t.dd) || tickWhen; changed = true; }
     else if (!d && doneDate[k]) { delete doneDate[k]; changed = true; }
   });
+  firstSync = false;
   if (changed) store.set("epm-donedate", doneDate);
+}
+// minutes worked per day, per course: logged sessions where a task has dated ones,
+// otherwise its planned time on the day it was finished
+function minutesByDay(){
+  const out = {};
+  const add = (day, c, m) => { if (!day || day === "seed") return; out[day] = out[day] || {}; out[day][c] = (out[day][c]||0) + m; };
+  DATA.menu.forEach(t=>{
+    const dated = sess(t).filter(s=>s[0] !== "seed");
+    if (dated.length) dated.forEach(([day,m])=>add(day, t.c, +m||0));
+    else if (taskDone(t)) add(doneDate[key(t)], t.c, planMin(t));
+  });
+  return out;
 }
 function renderToday(i){
   syncDoneDates();
-  const did = DATA.menu.filter(t=>doneDate[key(t)] === TKEY).reduce((a,t)=>a+planMin(t),0);
+  const did = Object.values(minutesByDay()[TKEY] || {}).reduce((a,m)=>a+m,0);
   const left = phaseLeft(i);
   const need = left ? left / daysLeft(i) : 0;
   const el = document.getElementById("today");
@@ -595,7 +628,9 @@ function renderTasks(){
     </label>${t.tut?`<div class="subs">
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}>Attempted</label>
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}>Marked</label>
-    </div>`:""}<div class="tl"><span>Time spent</span><input type="number" min="0" step="5" inputmode="numeric" data-tm="${i}" value="${spent(t)||""}" aria-label="Minutes spent on ${esc(t.t)}"><span>min</span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
+    </div>`:""}<div class="tl"><span>Time spent</span>${sess(t).map((s,j)=>
+      `<span class="sess">${fmtMin(+s[1])} ${s[0]==="seed" ? "earlier" : fmt(d(s[0]))}<button class="x" data-sdel="${i}:${j}" aria-label="Remove ${fmtMin(+s[1])} session">×</button></span>`).join("")}
+      <span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)}"><select data-sd="${i}" aria-label="Day you spent them">${whenOptions(tickWhen)}</select><button class="btn sbtn" data-sadd="${i}">Add</button></span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
@@ -732,6 +767,26 @@ document.getElementById("cfilters").addEventListener("click", e=>{
   syncCourseChips(); renderTasks();
 });
 syncCourseChips();
+// time sessions: add "N min on <day>", or remove one
+function addSession(i){
+  const t = DATA.menu[i], li = document.querySelector(`[data-sadd="${i}"]`).closest(".sadd");
+  const inp = li.querySelector("[data-sm]"), m = Math.round(parseFloat(inp.value));
+  if (!(m > 0)) { inp.focus(); return; }
+  const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
+  list.push([li.querySelector("[data-sd]").value, m]);
+  sessLog[key(t)] = list; saveSess(); refresh();
+}
+document.getElementById("tasks").addEventListener("click", e=>{
+  if (editing) return;
+  const a = e.target.closest("[data-sadd]"); if (a) { addSession(+a.dataset.sadd); return; }
+  const x = e.target.closest("[data-sdel]"); if (!x) return;
+  const [i, j] = x.dataset.sdel.split(":").map(Number), t = DATA.menu[i];
+  const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
+  list.splice(j, 1); sessLog[key(t)] = list; saveSess(); refresh();
+});
+document.getElementById("tasks").addEventListener("keydown", e=>{
+  if (e.key === "Enter" && e.target.dataset.sm !== undefined) { e.preventDefault(); addSession(+e.target.dataset.sm); }
+});
 const whenSel = document.getElementById("tickwhen");
 whenSel.innerHTML = whenOptions(TKEY);
 whenSel.addEventListener("change", ()=>{
@@ -745,11 +800,7 @@ document.getElementById("tasks").addEventListener("change", e=>{
     const t=DATA.menu[+e.target.dataset.redate]; doneDate[key(t)] = e.target.value;
     store.set("epm-donedate", doneDate); refresh(); return;
   }
-  if (e.target.dataset.tm!==undefined) {
-    const t=DATA.menu[+e.target.dataset.tm], v=Math.max(0, parseFloat(e.target.value)||0);
-    if (v) timeLog[key(t)] = v; else delete timeLog[key(t)];
-    store.set("epm-time", timeLog); refresh(); return;
-  }
+  if (e.target.dataset.sm!==undefined || e.target.dataset.sd!==undefined) return;   // session inputs: handled by the Add button
   const i=e.target.dataset.i; if(i===undefined) return; const t=DATA.menu[+i], on=e.target.checked;
   if (t.tut) {
     const st = {...tst(t)}, sub = e.target.dataset.sub;
@@ -828,10 +879,7 @@ function renderWork(){
   const N = wkDays.length;
   const at = Object.fromEntries(wkDays.map((w,i)=>[w.key,i]));
   const add = (day, c, m) => { if (!(day in at)) return; const w = wkDays[at[day]]; w.by[c] = (w.by[c]||0) + m; w.tot += m; };
-  DATA.menu.forEach(t=>{
-    if (t.sessions && !timeLog[key(t)]) t.sessions.forEach(([day,m])=>add(day, t.c, m));   // known minutes on known days
-    else add(doneDate[key(t)], t.c, planMin(t));                                           // otherwise planned time on the day it was finished
-  });
+  Object.entries(minutesByDay()).forEach(([day, by])=>Object.entries(by).forEach(([c,m])=>add(day, c, m)));
   const max = Math.max(...wkDays.map(w=>w.tot));
   const step = max > 6*60 ? 120 : 60, top = Math.max(step, Math.ceil(max/step)*step);
   let grid = "";
@@ -883,7 +931,7 @@ wkPlot.addEventListener("focusout", ()=>{ if (wkSel<0) document.getElementById("
 renderStrip(); renderPhases(); renderCourses(); renderWork();
 
 // ---- moving progress between the old page, this site and other devices ----
-const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-donedate","epm-course","epm-sortc","epm-phase-view","epm-edits","epm-dd-applied"];
+const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-sessions","epm-donedate","epm-course","epm-sortc","epm-phase-view","epm-edits","epm-dd-applied"];
 document.getElementById("snippet").textContent =
   'copy(JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith("epm-")).map(k=>[k,JSON.parse(localStorage.getItem(k))]))))';
 const ioMsg = t => { document.getElementById("syncmsg").textContent = t; };
@@ -898,7 +946,7 @@ document.getElementById("doimport").addEventListener("click", ()=>{
   let got;
   try { got = JSON.parse(document.getElementById("iotext").value.trim()); } catch(e) { ioMsg("That isn't valid progress data. Copy it again and paste the whole thing."); return; }
   if (!got || typeof got !== "object" || !IO_KEYS.some(k=>k in got)) { ioMsg("No Exam Prep Map progress found in that text."); return; }
-  const hasLocal = ["epm-done","epm-watch","epm-tut","epm-time"].some(k=>Object.keys(store.get(k, {})).length);
+  const hasLocal = ["epm-done","epm-watch","epm-tut","epm-time","epm-sessions"].some(k=>Object.keys(store.get(k, {})).length);
   if (hasLocal && !confirm("Replace the ticks already saved on this site with the pasted ones?")) return;
   // clear first, so the one-off first-run steps above run again for anything the paste doesn't include
   IO_KEYS.forEach(k=>{ try { localStorage.removeItem(k); } catch(e) {} });
