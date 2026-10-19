@@ -160,10 +160,8 @@ body{margin:0}
 .tl .sadd input{width:62px}
 .sadd select{font:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid color-mix(in srgb, currentColor 35%, transparent);border-radius:6px;padding:3px 4px}
 .btn.sbtn{padding:3px 10px;font-size:12.5px}
-.whenbar select,select.redate{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:2px 6px}
+select.redate{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:2px 6px}
 select.redate{font-size:12px;padding:1px 4px}
-.whenbar.away{background:var(--mark);color:var(--mark-ink);border-radius:8px;padding:6px 10px}
-.whenbar.away select{border-color:var(--mark-ink)}
 /* edit mode */
 .editbtn{margin-left:8px;font-size:12px;padding:3px 10px}
 .editbtn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -275,11 +273,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
       <button class="chip" data-co="ACC3004W" aria-pressed="false">Tax II</button>
       <button class="chip" data-co="FTX4087S" aria-pressed="false">Banking</button>
       <button class="chip sortbtn" id="sortc" aria-pressed="false">Sort by course</button>
-    </div>
-    <div class="filters whenbar" id="whenbar">
-      <label for="tickwhen">Ticks count as done:</label>
-      <select id="tickwhen"></select>
-      <span id="whennote"></span>
     </div>
     <ul class="tasks" id="tasks"></ul>
     <p class="note-small">Ticking a video or tutorial task updates the videos behind, tutorials to do and catch-up hours above and in the course tables. Tutorials have Attempted and Marked boxes: the main box ticks itself once a tutorial is marked, and an attempted one counts as about 15 minutes of catch-up (just the marking left). You can also click any date in a course table to mark that video watched. Ticks are saved in this browser only, so tick on the device you usually use.</p>
@@ -510,8 +503,12 @@ function daysLeft(i){
 const doneDate = store.get("epm-donedate", null) || {};
 const ymd = x => x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");
 const TKEY = ymd(TODAY);
-// which day new ticks are stamped with: today by default, or an earlier day / "seed" (earlier, no date) when catching up on old work
-let tickWhen = TKEY;
+// the day a ticked task counts as finished: the latest day you logged time on it; only undated ("earlier")
+// time means earlier, no date; no time logged means today
+function doneDayFor(t){
+  const all = sess(t).map(s=>s[0]), dated = all.filter(x=>x !== "seed").sort();
+  return dated.length ? dated[dated.length-1] : all.length ? "seed" : TKEY;
+}
 function whenOptions(sel){
   const o = [[TKEY,"Today"]];
   // every day back to the start of the chart (Mon 12 Oct), and at least a week
@@ -551,7 +548,7 @@ function syncDoneDates(){
   let changed = false;
   DATA.menu.forEach(t=>{
     const k = key(t), d = taskDone(t);
-    if (d && !doneDate[k]) { doneDate[k] = (firstSync && t.dd) || tickWhen; changed = true; }
+    if (d && !doneDate[k]) { doneDate[k] = (firstSync && t.dd) || doneDayFor(t); changed = true; }
     else if (!d && doneDate[k]) { delete doneDate[k]; changed = true; }
   });
   firstSync = false;
@@ -632,7 +629,7 @@ function renderTasks(){
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}>Marked</label>
     </div>`:""}<div class="tl"><span>Time spent</span>${sess(t).map((s,j)=>
       `<span class="sess"><input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>`).join("")}
-      <span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)}"><select data-sd="${i}" aria-label="Day you spent them">${whenOptions(tickWhen)}</select><button class="btn sbtn" data-sadd="${i}">Add</button></span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
+      <span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)}"><select data-sd="${i}" aria-label="Day you spent them">${whenOptions(TKEY)}</select><button class="btn sbtn" data-sadd="${i}">Add</button></span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
@@ -776,7 +773,13 @@ function addSession(i){
   if (!(m > 0)) { inp.focus(); return; }
   const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
   list.push([li.querySelector("[data-sd]").value, m]);
-  sessLog[key(t)] = list; saveSess(); refresh();
+  sessLog[key(t)] = list; sessionsChanged(t);
+}
+// logging time on a finished task moves its finish day to the latest day logged
+function sessionsChanged(t){
+  saveSess();
+  if (taskDone(t)) { doneDate[key(t)] = doneDayFor(t); store.set("epm-donedate", doneDate); }
+  refresh();
 }
 document.getElementById("tasks").addEventListener("click", e=>{
   if (editing) return;
@@ -784,18 +787,10 @@ document.getElementById("tasks").addEventListener("click", e=>{
   const x = e.target.closest("[data-sdel]"); if (!x) return;
   const [i, j] = x.dataset.sdel.split(":").map(Number), t = DATA.menu[i];
   const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
-  list.splice(j, 1); sessLog[key(t)] = list; saveSess(); refresh();
+  list.splice(j, 1); sessLog[key(t)] = list; sessionsChanged(t);
 });
 document.getElementById("tasks").addEventListener("keydown", e=>{
   if (e.key === "Enter" && e.target.dataset.sm !== undefined) { e.preventDefault(); addSession(+e.target.dataset.sm); }
-});
-const whenSel = document.getElementById("tickwhen");
-whenSel.innerHTML = whenOptions(TKEY);
-whenSel.addEventListener("change", ()=>{
-  tickWhen = whenSel.value;
-  document.getElementById("whenbar").classList.toggle("away", tickWhen !== TKEY);
-  document.getElementById("whennote").textContent = tickWhen === TKEY ? "" :
-    "Ticks you make now won't count toward today. This resets to Today when you reload.";
 });
 document.getElementById("tasks").addEventListener("change", e=>{
   if (e.target.dataset.redate!==undefined) {
@@ -809,7 +804,7 @@ document.getElementById("tasks").addEventListener("change", e=>{
     const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
     if (e.target.dataset.sday) list[j][0] = e.target.value;
     else { const m = Math.round(parseFloat(e.target.value)); if (m > 0) list[j][1] = m; else list.splice(j, 1); }
-    sessLog[key(t)] = list; saveSess(); refresh(); return;
+    sessLog[key(t)] = list; sessionsChanged(t); return;
   }
   const i=e.target.dataset.i; if(i===undefined) return; const t=DATA.menu[+i], on=e.target.checked;
   if (t.tut) {
