@@ -276,13 +276,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
     <p class="note-small">Ticking a video or tutorial task updates the videos behind, tutorials to do and catch-up hours above and in the course tables. Tutorials have Attempted and Marked boxes: the main box ticks itself once a tutorial is marked, and an attempted one counts as about 15 minutes of catch-up (just the marking left). You can also click any date in a course table to mark that video watched. Ticks are saved in this browser only, so tick on the device you usually use.</p>
   </section>
 
-  <section id="how">
-    <div class="shead"><h2>How to go about it</h2></div>
-    <div class="tips" id="tips"></div>
-  </section>
-
-  <div id="courses"></div>
-
   <section id="work">
     <div class="shead"><h2>Work done per day</h2><span class="when" id="wkwhen"></span></div>
     <div class="wk-hero" id="wkhero"></div>
@@ -295,6 +288,13 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
     <details class="wk-tbl"><summary>Show as a table</summary><div class="tbl" id="wktable"></div></details>
     <p class="note-small">Each task counts at its planned time on the day you ticked it off. Ticks from before the site started recording dates don't appear here. Tap or hover a bar for the breakdown.</p>
   </section>
+
+  <section id="how">
+    <div class="shead"><h2>How to go about it</h2></div>
+    <div class="tips" id="tips"></div>
+  </section>
+
+  <div id="courses"></div>
 
   <section id="progress-io">
     <div class="shead"><h2>Your progress</h2></div>
@@ -495,7 +495,9 @@ const TKEY = ymd(TODAY);
 let tickWhen = TKEY;
 function whenOptions(sel){
   const o = [[TKEY,"Today"]];
-  for (let k=1; k<=6; k++) { const x = new Date(TODAY); x.setDate(x.getDate()-k); o.push([ymd(x), k===1 ? "Yesterday" : fmt(x)]); }
+  // every day back to the start of the chart (Mon 12 Oct), and at least a week
+  const back = Math.max(6, DATA.chartFrom ? Math.round((TODAY - d(DATA.chartFrom))/864e5) : 0);
+  for (let k=1; k<=back; k++) { const x = new Date(TODAY); x.setDate(x.getDate()-k); o.push([ymd(x), k===1 ? "Yesterday" : fmt(x)]); }
   o.push(["seed","Earlier, no date"]);
   if (sel && !o.some(([v])=>v===sel)) o.splice(o.length-1, 0, [sel, fmt(d(sel))]);
   return o.map(([v,l])=>`<option value="${v}"${v===sel?" selected":""}>${l}</option>`).join("");
