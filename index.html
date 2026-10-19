@@ -151,6 +151,36 @@ body{margin:0}
 .btn{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 12px;font:600 13px var(--body);cursor:pointer}
 .btn:hover{border-color:var(--accent)}
 #syncmsg{font-weight:600;color:var(--done)}
+/* work per day: stacked bars by course */
+:root{--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500}}
+:root[data-theme="dark"]{--c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500}
+.wk{position:relative;background:var(--surface);border:1px solid var(--rule);border-radius:10px;padding:16px 12px 10px 44px;margin-top:14px}
+.wk-plot{position:relative;height:180px;display:flex;align-items:flex-end;gap:clamp(3px,1vw,8px)}
+.wk-grid{position:absolute;left:0;right:0;border-top:1px solid var(--rule);pointer-events:none}
+.wk-grid.base{border-top-color:var(--muted)}
+.wk-grid span{position:absolute;right:calc(100% + 8px);top:-8px;font:11px var(--mono);color:var(--muted);white-space:nowrap}
+.wk-col{flex:1;height:100%;display:flex;flex-direction:column-reverse;gap:2px;cursor:pointer;position:relative;z-index:1;border-radius:4px;min-width:0}
+.wk-col:hover,.wk-col.sel{background:color-mix(in srgb,var(--ink) 7%,transparent)}
+.wk-col i{display:block;flex:none}
+.wk-col i:last-child{border-radius:4px 4px 0 0}
+.wk-x{display:flex;gap:clamp(3px,1vw,8px);margin-top:6px}
+.wk-x span{flex:1;min-width:0;text-align:center;font:11px var(--mono);color:var(--muted);line-height:1.25}
+.wk-x b{color:var(--ink)}
+.wk-tip{position:absolute;z-index:3;pointer-events:none;background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;font-size:12.5px;box-shadow:0 4px 14px rgba(0,0,0,.18);min-width:150px;display:none}
+.wk-tip b{display:block;margin-bottom:3px}
+.wk-tip div,.wk-legend span{display:flex;align-items:center;gap:6px}
+.wk-tip em{font-style:normal;margin-left:auto;padding-left:12px;font-variant-numeric:tabular-nums;font-weight:600}
+.sw{width:10px;height:10px;border-radius:3px;flex:none}
+.wk-legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:12px;font-size:13px;color:var(--muted)}
+.wk-legend b{color:var(--ink);font-variant-numeric:tabular-nums}
+.wk-hero{display:flex;flex-wrap:wrap;gap:4px 28px;margin-top:12px}
+.wk-hero div{display:grid}
+.wk-hero b{font-family:var(--display);font-stretch:80%;font-size:26px;font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums}
+details.wk-tbl{margin-top:10px;font-size:13px}
+details.wk-tbl summary{cursor:pointer;color:var(--accent)}
+details.wk-tbl table{min-width:0;font-size:13px;font-variant-numeric:tabular-nums}
+details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
 </style>
 </head>
 <body>
@@ -202,6 +232,19 @@ body{margin:0}
   </section>
 
   <div id="courses"></div>
+
+  <section id="work">
+    <div class="shead"><h2>Work done per day</h2><span class="when">Last 14 days</span></div>
+    <div class="wk-hero" id="wkhero"></div>
+    <div class="wk" id="wk">
+      <div class="wk-plot" id="wkplot"></div>
+      <div class="wk-x" id="wkx"></div>
+      <div class="wk-tip" id="wktip" role="tooltip"></div>
+    </div>
+    <div class="wk-legend" id="wklegend"></div>
+    <details class="wk-tbl"><summary>Show as a table</summary><div class="tbl" id="wktable"></div></details>
+    <p class="note-small">Each task counts at its planned time on the day you ticked it off. Ticks from before the site started recording dates don't appear here. Tap or hover a bar for the breakdown.</p>
+  </section>
 
   <section id="progress-io">
     <div class="shead"><h2>Your progress</h2></div>
@@ -435,7 +478,7 @@ function renderTasks(){
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}>Marked</label>
     </div>`:""}<div class="tl"><span>Time spent</span><input type="number" min="0" step="5" inputmode="numeric" data-tm="${i}" value="${spent(t)||""}" aria-label="Minutes spent on ${esc(t.t)}"><span>min</span><span class="plan">planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
 }
-function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); }
+function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 document.getElementById("phases").addEventListener("click", e=>{
   const b=e.target.closest(".ph"); if(!b) return; shown=+b.dataset.i; store.set("epm-phase-view", shown); renderPhases();
 });
@@ -526,7 +569,66 @@ document.getElementById("courses").addEventListener("click", e=>{
   const nb=document.querySelector(`.dt[data-c="${b.dataset.c}"][data-s="${b.dataset.s}"]`); if(nb) nb.focus({preventScroll:true});
 });
 
-renderStrip(); renderPhases(); renderCourses();
+// ---- work done per day, stacked by course (like a screen-time chart) ----
+const CVAR = {FTX4056S:"--c1",ACC3009W:"--c2",ACC3004W:"--c3",FTX4087S:"--c4"};
+const SHORT = {FTX4056S:"Applied",ACC3009W:"FR III",ACC3004W:"Tax II",FTX4087S:"Banking"};
+let wkDays = [], wkSel = -1;
+function renderWork(){
+  const N = 14; wkDays = [];
+  for (let k=N-1; k>=0; k--) { const x = new Date(TODAY); x.setDate(x.getDate()-k); wkDays.push({x, key:ymd(x), by:{}, tot:0}); }
+  const at = Object.fromEntries(wkDays.map((w,i)=>[w.key,i]));
+  DATA.menu.forEach(t=>{
+    const dd = doneDate[key(t)]; if (!(dd in at)) return;
+    const w = wkDays[at[dd]], m = planMin(t);
+    w.by[t.c] = (w.by[t.c]||0) + m; w.tot += m;
+  });
+  const max = Math.max(...wkDays.map(w=>w.tot));
+  const step = max > 6*60 ? 120 : 60, top = Math.max(step, Math.ceil(max/step)*step);
+  let grid = "";
+  for (let v=0; v<=top; v+=step) grid += `<div class="wk-grid${v?"":" base"}" style="bottom:${v/top*100}%"><span>${v/60}h</span></div>`;
+  document.getElementById("wkplot").innerHTML = grid + wkDays.map((w,i)=>
+    `<div class="wk-col${i===wkSel?" sel":""}" data-i="${i}" tabindex="0" aria-label="${fmt(w.x)}: ${fmtMin(w.tot)}">` +
+    CORDER.filter(c=>w.by[c]).map(c=>`<i style="height:calc(${w.by[c]/top*100}% - 2px);background:var(${CVAR[c]})"></i>`).join("") + `</div>`).join("");
+  document.getElementById("wkx").innerHTML = wkDays.map((w,i)=>{
+    const lab = DOW[w.x.getDay()][0] + "<br>" + w.x.getDate();
+    return `<span>${i===N-1 ? "<b>"+lab+"</b>" : lab}</span>`;
+  }).join("");
+  // headline numbers: today, and the average since the first day with anything recorded
+  const first = wkDays.findIndex(w=>w.tot>0);
+  const span = first<0 ? 0 : N-first, sum = wkDays.reduce((a,w)=>a+w.tot,0);
+  document.getElementById("wkhero").innerHTML =
+    `<div><span class="label">Today</span><b>${fmtMin(wkDays[N-1].tot)}</b></div>` +
+    `<div><span class="label">Daily average${span&&span<N?` · since ${fmt(wkDays[first].x)}`:""}</span><b>${fmtMin(span?sum/span:0)}</b></div>`;
+  const per = c => wkDays.reduce((a,w)=>a+(w.by[c]||0),0);
+  document.getElementById("wklegend").innerHTML = CORDER.map(c=>
+    `<span><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]} <b>${fmtMin(per(c))}</b></span>`).join("");
+  document.getElementById("wktable").innerHTML = `<table><thead><tr><th>Day</th>${CORDER.map(c=>`<th style="text-align:right">${SHORT[c]}</th>`).join("")}<th style="text-align:right">Total</th></tr></thead><tbody>` +
+    wkDays.slice().reverse().map(w=>`<tr><td>${fmt(w.x)}</td>${CORDER.map(c=>`<td style="text-align:right">${w.by[c]?fmtMin(w.by[c]):"–"}</td>`).join("")}<td style="text-align:right"><b>${fmtMin(w.tot)}</b></td></tr>`).join("") + `</tbody></table>`;
+  if (wkSel >= 0) showWkTip(wkSel);
+}
+function showWkTip(i){
+  const w = wkDays[i], tip = document.getElementById("wktip"), box = document.getElementById("wk");
+  const col = document.querySelector(`.wk-col[data-i="${i}"]`); if (!col) return;
+  tip.innerHTML = `<b>${fmt(w.x)} · ${fmtMin(w.tot)}</b>` + (w.tot ? CORDER.filter(c=>w.by[c]).map(c=>
+    `<div><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]}<em>${fmtMin(w.by[c])}</em></div>`).join("") : `<div>Nothing ticked off</div>`);
+  tip.style.display = "block";
+  const cx = col.offsetLeft + col.offsetWidth/2 + col.offsetParent.offsetLeft;
+  tip.style.left = Math.max(4, Math.min(box.clientWidth - tip.offsetWidth - 4, cx - tip.offsetWidth/2)) + "px";
+  tip.style.top = "4px";
+}
+function hideWkTip(){ wkSel = -1; document.getElementById("wktip").style.display = "none"; document.querySelectorAll(".wk-col.sel").forEach(c=>c.classList.remove("sel")); }
+const wkPlot = document.getElementById("wkplot");
+wkPlot.addEventListener("pointerover", e=>{ const c=e.target.closest(".wk-col"); if (c && e.pointerType==="mouse") showWkTip(+c.dataset.i); });
+wkPlot.addEventListener("pointerleave", e=>{ if (e.pointerType==="mouse" && wkSel<0) document.getElementById("wktip").style.display="none"; });
+wkPlot.addEventListener("click", e=>{
+  const c=e.target.closest(".wk-col"); if (!c) return;
+  const i=+c.dataset.i; if (wkSel===i) { hideWkTip(); return; }
+  document.querySelectorAll(".wk-col.sel").forEach(x=>x.classList.remove("sel")); c.classList.add("sel"); wkSel=i; showWkTip(i);
+});
+wkPlot.addEventListener("focusin", e=>{ const c=e.target.closest(".wk-col"); if (c) showWkTip(+c.dataset.i); });
+wkPlot.addEventListener("focusout", ()=>{ if (wkSel<0) document.getElementById("wktip").style.display="none"; });
+
+renderStrip(); renderPhases(); renderCourses(); renderWork();
 
 // ---- moving progress between the old page, this site and other devices ----
 const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-donedate","epm-course","epm-sortc","epm-phase-view"];
