@@ -151,6 +151,10 @@ body{margin:0}
 .btn{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 12px;font:600 13px var(--body);cursor:pointer}
 .btn:hover{border-color:var(--accent)}
 #syncmsg{font-weight:600;color:var(--done)}
+.whenbar select,select.redate{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:2px 6px}
+select.redate{font-size:12px;padding:1px 4px}
+.whenbar.away{background:var(--mark);color:var(--mark-ink);border-radius:8px;padding:6px 10px}
+.whenbar.away select{border-color:var(--mark-ink)}
 /* work per day: stacked bars by course */
 :root{--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500}}
@@ -221,6 +225,11 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
       <button class="chip" data-co="ACC3004W" aria-pressed="false">Tax II</button>
       <button class="chip" data-co="FTX4087S" aria-pressed="false">Banking</button>
       <button class="chip sortbtn" id="sortc" aria-pressed="false">Sort by course</button>
+    </div>
+    <div class="filters whenbar" id="whenbar">
+      <label for="tickwhen">Ticks count as done:</label>
+      <select id="tickwhen"></select>
+      <span id="whennote"></span>
     </div>
     <ul class="tasks" id="tasks"></ul>
     <p class="note-small">Ticking a video or tutorial task updates the videos behind, tutorials to do and catch-up hours above and in the course tables. Tutorials have Attempted and Marked boxes: the main box ticks itself once a tutorial is marked, and an attempted one counts as about 15 minutes of catch-up (just the marking left). You can also click any date in a course table to mark that video watched. Ticks are saved in this browser only, so tick on the device you usually use.</p>
@@ -399,6 +408,20 @@ function daysLeft(i){
 const doneDate = store.get("epm-donedate", null) || {};
 const ymd = x => x.getFullYear()+"-"+String(x.getMonth()+1).padStart(2,"0")+"-"+String(x.getDate()).padStart(2,"0");
 const TKEY = ymd(TODAY);
+// which day new ticks are stamped with: today by default, or an earlier day / "seed" (earlier, no date) when catching up on old work
+let tickWhen = TKEY;
+function whenOptions(sel){
+  const o = [[TKEY,"Today"]];
+  for (let k=1; k<=6; k++) { const x = new Date(TODAY); x.setDate(x.getDate()-k); o.push([ymd(x), k===1 ? "Yesterday" : fmt(x)]); }
+  o.push(["seed","Earlier, no date"]);
+  if (sel && !o.some(([v])=>v===sel)) o.splice(o.length-1, 0, [sel, fmt(d(sel))]);
+  return o.map(([v,l])=>`<option value="${v}"${v===sel?" selected":""}>${l}</option>`).join("");
+}
+function doneLabel(t, i){
+  if (!taskDone(t)) return "";
+  const dd = doneDate[key(t)] || TKEY;
+  return `Done <select class="redate" data-redate="${i}" aria-label="When you finished ${esc(t.t)}">${whenOptions(dd)}</select> · `;
+}
 if (store.get("epm-donedate", null) === null) {       // first run: existing ticks predate today
   DATA.menu.forEach(t=>{ if (taskDone(t)) doneDate[key(t)] = "seed"; });
   store.set("epm-donedate", doneDate);
@@ -412,7 +435,7 @@ function syncDoneDates(){
   let changed = false;
   DATA.menu.forEach(t=>{
     const k = key(t), d = taskDone(t);
-    if (d && !doneDate[k]) { doneDate[k] = TKEY; changed = true; }
+    if (d && !doneDate[k]) { doneDate[k] = tickWhen; changed = true; }
     else if (!d && doneDate[k]) { delete doneDate[k]; changed = true; }
   });
   if (changed) store.set("epm-donedate", doneDate);
@@ -454,6 +477,7 @@ function renderPhases(){
   renderTasks();
 }
 function renderTasks(){
+  syncDoneDates();
   const all = DATA.menu.filter(t=>t.p===shown+1);
   let list = all.filter(t=> (energy==="all" || t.e===energy) && (course==="all" || t.c===course));
   if (sortByCourse) list = list.map((t,k)=>[t,k]).sort((a,b)=>(CORDER.indexOf(a[0].c)-CORDER.indexOf(b[0].c))||(a[1]-b[1])).map(x=>x[0]);
@@ -476,7 +500,7 @@ function renderTasks(){
     </label>${t.tut?`<div class="subs">
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}>Attempted</label>
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}>Marked</label>
-    </div>`:""}<div class="tl"><span>Time spent</span><input type="number" min="0" step="5" inputmode="numeric" data-tm="${i}" value="${spent(t)||""}" aria-label="Minutes spent on ${esc(t.t)}"><span>min</span><span class="plan">planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
+    </div>`:""}<div class="tl"><span>Time spent</span><input type="number" min="0" step="5" inputmode="numeric" data-tm="${i}" value="${spent(t)||""}" aria-label="Minutes spent on ${esc(t.t)}"><span>min</span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 document.getElementById("phases").addEventListener("click", e=>{
@@ -497,7 +521,19 @@ document.getElementById("cfilters").addEventListener("click", e=>{
   syncCourseChips(); renderTasks();
 });
 syncCourseChips();
+const whenSel = document.getElementById("tickwhen");
+whenSel.innerHTML = whenOptions(TKEY);
+whenSel.addEventListener("change", ()=>{
+  tickWhen = whenSel.value;
+  document.getElementById("whenbar").classList.toggle("away", tickWhen !== TKEY);
+  document.getElementById("whennote").textContent = tickWhen === TKEY ? "" :
+    "Ticks you make now won't count toward today. This resets to Today when you reload.";
+});
 document.getElementById("tasks").addEventListener("change", e=>{
+  if (e.target.dataset.redate!==undefined) {
+    const t=DATA.menu[+e.target.dataset.redate]; doneDate[key(t)] = e.target.value;
+    store.set("epm-donedate", doneDate); refresh(); return;
+  }
   if (e.target.dataset.tm!==undefined) {
     const t=DATA.menu[+e.target.dataset.tm], v=Math.max(0, parseFloat(e.target.value)||0);
     if (v) timeLog[key(t)] = v; else delete timeLog[key(t)];
