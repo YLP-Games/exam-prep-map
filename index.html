@@ -317,9 +317,22 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   </footer>
 </div>
 
-<script src="data.js"></script>
+<script>
+// if anything below fails, say so on the page instead of leaving it blank
+window.addEventListener("error", e=>{
+  const b = document.createElement("div");
+  b.style.cssText = "background:#b4561b;color:#fff;padding:12px 16px;font:14px system-ui;position:sticky;top:0;z-index:9";
+  b.textContent = "Something went wrong loading the plan: " + e.message + (e.lineno ? " (line " + e.lineno + ")" : "") + ". Try reloading; if it stays, send this message.";
+  document.body.prepend(b);
+});
+</script>
+<script src="data.js?v=6"></script>
 <script>
 const DATA = window.DATA;
+// tolerate an older cached data.js: ids follow the same k### numbering, phase dates fall back to the original ones
+DATA.menu.forEach((t,i)=>{ if (!t.id) t.id = "k" + String(i).padStart(3,"0"); });
+[["2026-10-12","2026-10-22"],["2026-10-23","2026-10-29"],["2026-10-30","2026-11-04"],["2026-11-05","2026-11-12"],["2026-11-13","2026-11-15"],["2026-11-16","2026-11-19"]]
+  .forEach(([a,b],i)=>{ const p = DATA.phases[i]; if (p && !p.start) { p.start = a; p.end = b; } });
 let PHASE_DATES = [];
 const syncPhaseDates = () => { PHASE_DATES = DATA.phases.map(p=>[p.start, p.end]); };
 const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
@@ -333,20 +346,24 @@ const store = { get(k,f){try{const v=localStorage.getItem(k);return v===null?f:J
 // "phase|title"; convert those by matching the title as published, so renaming or moving a task never loses a tick ----
 (function migrateKeys(){
   const byTitle = new Map(DATA.menu.map(t=>[t.t, t.id]));
-  const conv = k => { if (!k.includes("|")) return k; const id = byTitle.get(k.slice(k.indexOf("|")+1)); return id || k; };
-  const list = store.get("epm-done", null);
-  if (list && list.some(k=>k.includes("|"))) store.set("epm-done", [...new Set(list.map(conv))]);
-  const applied = store.get("epm-dd-applied", null);
-  if (applied && applied.some(k=>k.includes("|"))) store.set("epm-dd-applied", [...new Set(applied.map(conv))]);
-  ["epm-tut","epm-time","epm-donedate"].forEach(name=>{
-    const o = store.get(name, null); if (!o) return; let ch = false;
+  const conv = k => { k = String(k); if (!k.includes("|")) return k; const id = byTitle.get(k.slice(k.indexOf("|")+1)); return id || k; };
+  ["epm-done","epm-dd-applied"].forEach(name=>{
+    let list = store.get(name, null); if (list === null) return;
+    if (!Array.isArray(list)) list = typeof list === "object" ? Object.keys(list) : [];
+    store.set(name, [...new Set(list.filter(k=>k!=null).map(conv))]);
+  });
+  ["epm-tut","epm-time","epm-donedate","epm-watch"].forEach(name=>{
+    const o = store.get(name, null); if (o === null) return;
+    if (typeof o !== "object" || Array.isArray(o)) { store.set(name, {}); return; }
+    if (name === "epm-watch") return;
+    let ch = false;
     Object.keys(o).forEach(k=>{ const n = conv(k); if (n !== k) { if (!(n in o)) o[n] = o[k]; delete o[k]; ch = true; } });
     if (ch) store.set(name, o);
   });
 })();
 
 // ---- your own edits to the plan, layered over data.js: {phases:{i:{...}}, tasks:{id:{...}}, added:[task], deleted:[id]} ----
-const edits = Object.assign({phases:{}, tasks:{}, added:[], deleted:[]}, store.get("epm-edits", {}));
+const edits = Object.assign({phases:{}, tasks:{}, added:[], deleted:[]}, store.get("epm-edits", {}) || {});
 function saveEdits(){ store.set("epm-edits", edits); }
 (function applyEdits(){
   Object.entries(edits.phases).forEach(([i,p])=>{ if (DATA.phases[i]) Object.assign(DATA.phases[i], p); });
