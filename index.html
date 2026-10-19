@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-19.12">
+<meta name="build" content="2026-10-19.13">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -538,8 +538,9 @@ function doneDayFor(t){
 }
 function whenOptions(sel){
   const o = [[TKEY,"Today"]];
-  // every day back to the start of the chart (Mon 12 Oct), and at least a week
-  const back = Math.max(6, DATA.chartFrom ? Math.round((TODAY - d(DATA.chartFrom))/864e5) : 0);
+  // every day back to DATA.logFrom (Sun 11 Oct), and at least a week
+  const from = DATA.logFrom || DATA.chartFrom;
+  const back = Math.max(6, from ? Math.round((TODAY - d(from))/864e5) : 0);
   for (let k=1; k<=back; k++) { const x = new Date(TODAY); x.setDate(x.getDate()-k); o.push([ymd(x), k===1 ? "Yesterday" : fmt(x)]); }
   o.push(["seed","Earlier, no date"]);
   if (sel && !o.some(([v])=>v===sel)) o.splice(o.length-1, 0, [sel, fmt(d(sel))]);
