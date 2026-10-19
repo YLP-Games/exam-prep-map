@@ -335,7 +335,7 @@ function stats(c){
 }
 const tutState = store.get("epm-tut", {});           // task key -> {a: attempted, m: marked}
 function saveTut(){ store.set("epm-tut", tutState); }
-const tst = t => tutState[key(t)] || {a:false, m:false};
+const tst = t => tutState[key(t)] || t.st || {a:false, m:false};   // t.st: status reported outside the site, until you tick it yourself
 // time spent per task (minutes), kept in this browser
 const timeLog = store.get("epm-time", {});
 const spent = t => timeLog[key(t)] || 0;
@@ -471,7 +471,7 @@ function renderTasks(){
     return `<li class="${dn?"done":""}"><label for="${id}">
       <input type="checkbox" id="${id}" data-i="${i}" ${dn?"checked":""}>
       <span class="t">${t.note?`<span class="nb">Notes</span>`:""}${esc(t.note?t.t.replace(/^Notes:\s*/,""):t.t)}${part}</span><span class="tm">${esc(t.tm)}</span>
-      <span class="m"><span class="en en-${t.e}">${t.e==="Med"?"Medium":t.e}</span><span>${esc(NAMES[t.c]||t.c)}</span>
+      <span class="m"><span class="en en-${t.e}">${t.e==="Med"?"Medium":t.e}</span><span>${esc(NAMES[t.c]||t.c)}</span>${t.memo?`<span><b>${esc(t.memo)}</b></span>`:""}
         ${t.u?`<a href="${esc(t.u)}" target="_blank" rel="noopener">${esc(t.w)}</a>`:`<span>${esc(t.w||"")}</span>`}</span>
     </label>${t.tut?`<div class="subs">
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}>Attempted</label>
