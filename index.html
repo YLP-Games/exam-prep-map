@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-19.19">
+<meta name="build" content="2026-10-19.20">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -616,20 +616,34 @@ function renderToday(i){
   const items = itemsOn(TKEY), byC = {};
   items.forEach(({t,m})=>{ byC[t.c] = (byC[t.c]||0) + m; });
   const did = items.reduce((a,x)=>a+x.m,0);
+  // how much of the phase's planned work today knocked off, per course: what was left on each task at the
+  // start of today minus what's left now (a 45 min video finished in 60 min covers 45 min)
+  const coveredC = {};
+  DATA.menu.filter(t=>t.p===i+1).forEach(t=>{
+    const plan = planMin(t), todayMin = sess(t).filter(s=>s[0]===TKEY).reduce((a,s)=>a+(+s[1]||0),0);
+    const doneEarlier = taskDone(t) && (doneDate[key(t)]||TKEY) !== TKEY;
+    if (doneEarlier) return;
+    const leftStart = Math.max(0, plan - (spent(t) - todayMin));
+    const leftNow = taskDone(t) ? 0 : Math.max(0, plan - spent(t));
+    if (leftStart > leftNow) coveredC[t.c] = (coveredC[t.c]||0) + leftStart - leftNow;
+  });
+  const covered = Object.values(coveredC).reduce((a,m)=>a+m,0);
   const left = phaseLeft(i);
-  const need = left ? left / daysLeft(i) : 0;
+  // today's target is fixed for the day: its share of what was left this morning
+  const need = (left + covered) / daysLeft(i);
+  const leftToday = Math.max(0, need - covered);
   const el = document.getElementById("today");
-  if (!left && !did) { el.innerHTML = ""; return; }
-  const scale = Math.max(need, did) || 1, cs = CORDER.filter(c=>byC[c]);
+  if (!left && !did && !covered) { el.innerHTML = ""; return; }
+  const scale = Math.max(need, covered) || 1, cs = CORDER.filter(c=>coveredC[c]);
   if (todaySel && !byC[todaySel]) todaySel = null;
   const detail = todaySel ? `<div class="tdetail"><b>${SHORT[todaySel]} today \u00b7 ${fmtMin(byC[todaySel])}</b><ul>` +
       items.filter(x=>x.t.c===todaySel).map(({t,m})=>`<li><span>${esc(t.t)}${taskDone(t)?" <em>\u2713 finished</em>":""}</span><span>${fmtMin(m)}</span></li>`).join("") +
       `</ul></div>` : "";
   el.innerHTML = `<div class="tbar seg">` + cs.map(c=>
-      `<button class="tseg" data-c="${c}" style="width:${byC[c]/scale*100}%;background:var(${CVAR[c]})" aria-pressed="${c===todaySel}" aria-label="${SHORT[c]}: ${fmtMin(byC[c])} today. Show what you did" title="${SHORT[c]}: ${fmtMin(byC[c])}"></button>`).join("") + `</div>
-    <div class="tnum"><b>${fmtMin(did)}</b> done today of <b>${fmtMin(need)}</b> needed
-      <span class="tsub">\u00b7 today's share of what's left in this phase</span></div>` +
-    (cs.length ? `<div class="tleg">` + cs.map(c=>`<button class="tchip" data-c="${c}" aria-pressed="${c===todaySel}"><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]} <b>${fmtMin(byC[c])}</b></button>`).join("") + `</div>` : "") + detail;
+      `<button class="tseg" data-c="${c}" style="width:${coveredC[c]/scale*100}%;background:var(${CVAR[c]})" aria-pressed="${c===todaySel}" aria-label="${SHORT[c]}: ${fmtMin(coveredC[c])} of planned work covered today. Show what you did" title="${SHORT[c]}: ${fmtMin(coveredC[c])} covered"></button>`).join("") + `</div>
+    <div class="tnum">${leftToday ? `<b>${fmtMin(leftToday)}</b> left to do today` : `<b>Today's share is done</b>`}
+      <span class="tsub">\u00b7 ${fmtMin(covered)} of today's ${fmtMin(need)} covered${did ? `, ${fmtMin(did)} spent` : ""}</span></div>` +
+    (Object.keys(byC).length ? `<div class="tleg">` + CORDER.filter(c=>byC[c]).map(c=>`<button class="tchip" data-c="${c}" aria-pressed="${c===todaySel}"><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]} <b>${fmtMin(byC[c])}</b></button>`).join("") + `</div>` : "") + detail;
 }
 document.getElementById("today").addEventListener("click", e=>{
   const b = e.target.closest("[data-c]"); if (!b) return;
