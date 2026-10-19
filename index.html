@@ -151,7 +151,9 @@ body{margin:0}
 .btn{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 12px;font:600 13px var(--body);cursor:pointer}
 .btn:hover{border-color:var(--accent)}
 #syncmsg{font-weight:600;color:var(--done)}
-.sess{display:inline-flex;align-items:center;gap:2px;background:var(--accent-soft);color:var(--ink);border-radius:999px;padding:1px 4px 1px 9px;font-size:12.5px;white-space:nowrap}
+.sess{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);color:var(--ink);border-radius:8px;padding:2px 2px 2px 4px;font-size:12.5px;white-space:nowrap}
+.tl .sess input{width:52px;padding:2px 4px;font-size:12.5px}
+.sess select{font:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid color-mix(in srgb, currentColor 35%, transparent);border-radius:6px;padding:2px 3px}
 .sess .x{border:0;background:none;color:var(--muted);cursor:pointer;font-size:15px;line-height:1;padding:0 4px}
 .sess .x:hover{color:var(--todo)}
 .sadd{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}
@@ -629,7 +631,7 @@ function renderTasks(){
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}>Attempted</label>
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}>Marked</label>
     </div>`:""}<div class="tl"><span>Time spent</span>${sess(t).map((s,j)=>
-      `<span class="sess">${fmtMin(+s[1])} ${s[0]==="seed" ? "earlier" : fmt(d(s[0]))}<button class="x" data-sdel="${i}:${j}" aria-label="Remove ${fmtMin(+s[1])} session">×</button></span>`).join("")}
+      `<span class="sess"><input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>`).join("")}
       <span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)}"><select data-sd="${i}" aria-label="Day you spent them">${whenOptions(tickWhen)}</select><button class="btn sbtn" data-sadd="${i}">Add</button></span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
@@ -800,7 +802,15 @@ document.getElementById("tasks").addEventListener("change", e=>{
     const t=DATA.menu[+e.target.dataset.redate]; doneDate[key(t)] = e.target.value;
     store.set("epm-donedate", doneDate); refresh(); return;
   }
-  if (e.target.dataset.sm!==undefined || e.target.dataset.sd!==undefined) return;   // session inputs: handled by the Add button
+  if (e.target.dataset.sm!==undefined || e.target.dataset.sd!==undefined) return;   // new-session inputs: handled by the Add button
+  const se = e.target.dataset.smin || e.target.dataset.sday;
+  if (se) {   // change a logged session's minutes or day (0 minutes removes it)
+    const [i, j] = se.split(":").map(Number), t = DATA.menu[i];
+    const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
+    if (e.target.dataset.sday) list[j][0] = e.target.value;
+    else { const m = Math.round(parseFloat(e.target.value)); if (m > 0) list[j][1] = m; else list.splice(j, 1); }
+    sessLog[key(t)] = list; saveSess(); refresh(); return;
+  }
   const i=e.target.dataset.i; if(i===undefined) return; const t=DATA.menu[+i], on=e.target.checked;
   if (t.tut) {
     const st = {...tst(t)}, sub = e.target.dataset.sub;
