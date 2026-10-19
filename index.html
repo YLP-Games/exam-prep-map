@@ -155,6 +155,35 @@ body{margin:0}
 select.redate{font-size:12px;padding:1px 4px}
 .whenbar.away{background:var(--mark);color:var(--mark-ink);border-radius:8px;padding:6px 10px}
 .whenbar.away select{border-color:var(--mark-ink)}
+/* edit mode */
+.editbtn{margin-left:8px;font-size:12px;padding:3px 10px}
+.editbtn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.phaseedit{background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:12px;margin:0 0 14px;display:grid;gap:10px}
+.phaseedit[hidden]{display:none}
+.pe-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);gap:8px 10px}
+.pe-grid label{display:grid;gap:3px;font-size:12px;font-weight:600;color:var(--muted);min-width:0}
+.pe-grid .wide{grid-column:1/-1}
+@media (max-width:560px){.pe-grid{grid-template-columns:1fr 1fr}.pe-grid label:first-child{grid-column:1/-1}}
+.phaseedit .row{display:flex;flex-wrap:wrap;gap:8px}
+.pe-grid input,.pe-grid textarea,.erow input,.erow select{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:4px 7px;min-width:0;box-sizing:border-box;width:100%}
+.erow{padding:8px 10px;display:grid;gap:6px}
+.erow .eg{display:grid;grid-template-columns:20px minmax(0,1fr) auto auto auto auto auto;gap:6px;align-items:center}
+.erow .eg2{display:grid;grid-template-columns:20px minmax(0,1fr) minmax(0,1fr) minmax(0,1.4fr);gap:6px}
+.erow .eg2 > :first-child{grid-column:2}
+.erow select{width:auto}
+.erow input.etm{width:72px}
+.drag{cursor:grab;color:var(--muted);font-size:16px;line-height:1;user-select:none;touch-action:none}
+.btn.del{color:var(--todo);padding:4px 8px}
+@media (max-width:640px){
+  .erow .eg{display:flex;flex-wrap:wrap}
+  .erow .eg .et{flex:1 1 calc(100% - 30px)}
+  .erow .eg > select,.erow .eg > input.etm,.erow .eg > .del{flex:1 1 auto;width:auto}
+  .erow .eg > select:first-of-type{margin-left:26px}
+  .erow .eg2{grid-template-columns:20px 1fr}
+  .erow .eg2 > *{grid-column:2}
+}
+.ph.drop{outline:2px dashed var(--accent);outline-offset:2px}
+.erow.dragging{opacity:.5}
 /* work per day: stacked bars by course */
 :root{--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--c1:#3987e5;--c2:#d95926;--c3:#199e70;--c4:#c98500}}
@@ -199,7 +228,19 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   <div class="strip" id="strip"></div>
 
   <section id="now" style="margin-top:0">
-    <div class="shead"><h2>Where you are</h2><span class="when" id="nowline"></span></div>
+    <div class="shead"><h2>Where you are</h2><span class="when"><span id="nowline"></span> <button class="btn editbtn" id="editbtn" aria-pressed="false">Edit plan</button></span></div>
+    <div class="phaseedit" id="phaseedit" hidden>
+      <p class="note-small" style="margin:0 0 4px">Editing the selected phase. Changes save as you go, on this device; Export at the bottom carries them to another device. Drag a task's handle onto a phase button above to move it, or use its phase menu.</p>
+      <div class="pe-grid">
+        <label>Name<input data-pf="name"></label>
+        <label>Starts<input type="date" data-pf="start"></label>
+        <label>Ends<input type="date" data-pf="end"></label>
+        <label class="wide">The one goal<textarea data-pf="goal" rows="2"></textarea></label>
+        <label class="wide">If you only do one thing today<input data-pf="one"></label>
+        <label class="wide">Alongside<input data-pf="also"></label>
+      </div>
+      <div class="row"><button class="btn" id="addtask">+ Add a task to this phase</button><button class="btn" id="resetedits">Undo all my edits</button></div>
+    </div>
     <div class="phases" id="phases" role="group" aria-label="Phases"></div>
     <div class="phase-body">
       <div><span class="label">The one goal</span><p class="goal" id="goal"></p><p class="pace" id="pace"></p>
@@ -279,7 +320,8 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
 <script src="data.js"></script>
 <script>
 const DATA = window.DATA;
-const PHASE_DATES = [["2026-10-12","2026-10-22"],["2026-10-23","2026-10-29"],["2026-10-30","2026-11-04"],["2026-11-05","2026-11-12"],["2026-11-13","2026-11-15"],["2026-11-16","2026-11-19"]];
+let PHASE_DATES = [];
+const syncPhaseDates = () => { PHASE_DATES = DATA.phases.map(p=>[p.start, p.end]); };
 const MON=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"], DOW=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 const d = s => new Date(s+"T00:00:00");
 const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -287,17 +329,34 @@ const now = new Date(); const TODAY = new Date(now.getFullYear(), now.getMonth()
 const daysTo = s => Math.round((d(s)-TODAY)/864e5);
 const fmt = x => `${DOW[x.getDay()]} ${x.getDate()} ${MON[x.getMonth()]}`;
 const store = { get(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return f}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
-// tasks moved between phases carry `was` (their old phase): move their saved ticks from "old|title" to "new|title"
-(function carryMoved(){
-  const moves = DATA.menu.filter(t=>t.was && t.was!==t.p).map(t=>[t.was+"|"+t.t, t.p+"|"+t.t]);
-  const done = store.get("epm-done", null);
-  if (done) { const s=new Set(done); let ch=false; moves.forEach(([a,b])=>{ if(s.has(a)){ s.delete(a); s.add(b); ch=true; } }); if(ch) store.set("epm-done",[...s]); }
-  ["epm-tut","epm-time","epm-donedate"].forEach(k=>{
-    const o=store.get(k,null); if(!o) return; let ch=false;
-    moves.forEach(([a,b])=>{ if(a in o){ if(!(b in o)) o[b]=o[a]; delete o[a]; ch=true; } });
-    if(ch) store.set(k,o);
+// ---- saved ticks are keyed by each task's stable id. Older saves (and imports from the old page) used
+// "phase|title"; convert those by matching the title as published, so renaming or moving a task never loses a tick ----
+(function migrateKeys(){
+  const byTitle = new Map(DATA.menu.map(t=>[t.t, t.id]));
+  const conv = k => { if (!k.includes("|")) return k; const id = byTitle.get(k.slice(k.indexOf("|")+1)); return id || k; };
+  const list = store.get("epm-done", null);
+  if (list && list.some(k=>k.includes("|"))) store.set("epm-done", [...new Set(list.map(conv))]);
+  const applied = store.get("epm-dd-applied", null);
+  if (applied && applied.some(k=>k.includes("|"))) store.set("epm-dd-applied", [...new Set(applied.map(conv))]);
+  ["epm-tut","epm-time","epm-donedate"].forEach(name=>{
+    const o = store.get(name, null); if (!o) return; let ch = false;
+    Object.keys(o).forEach(k=>{ const n = conv(k); if (n !== k) { if (!(n in o)) o[n] = o[k]; delete o[k]; ch = true; } });
+    if (ch) store.set(name, o);
   });
 })();
+
+// ---- your own edits to the plan, layered over data.js: {phases:{i:{...}}, tasks:{id:{...}}, added:[task], deleted:[id]} ----
+const edits = Object.assign({phases:{}, tasks:{}, added:[], deleted:[]}, store.get("epm-edits", {}));
+function saveEdits(){ store.set("epm-edits", edits); }
+(function applyEdits(){
+  Object.entries(edits.phases).forEach(([i,p])=>{ if (DATA.phases[i]) Object.assign(DATA.phases[i], p); });
+  edits.added.forEach(t=>{ if (!DATA.menu.some(x=>x.id===t.id)) DATA.menu.push({...t}); });
+  DATA.menu.forEach(t=>{ if (edits.tasks[t.id]) Object.assign(t, edits.tasks[t.id]); });
+  if (edits.deleted.length) DATA.menu = DATA.menu.filter(t=>!edits.deleted.includes(t.id));
+})();
+syncPhaseDates();
+const fmtRange = (a, b) => { const x=d(a), y=d(b);
+  return x.getMonth()===y.getMonth() ? `${x.getDate()}–${y.getDate()} ${MON[y.getMonth()]}` : `${x.getDate()} ${MON[x.getMonth()]}–${y.getDate()} ${MON[y.getMonth()]}`; };
 const NAMES = {FTX4056S:"Applied Investments",ACC3009W:"FR III",ACC3004W:"Tax II",FTX4087S:"Banking",Video:"New videos"};
 
 document.getElementById("asat").textContent = "Today · " + fmt(TODAY) + " " + TODAY.getFullYear();
@@ -306,7 +365,7 @@ document.getElementById("asat").textContent = "Today · " + fmt(TODAY) + " " + T
 const ASAT = d(DATA.asat);
 const watchMap = store.get("epm-watch", {});        // "CODE|YYYY-MM-DD" -> true/false (your overrides)
 const doneSet = new Set(store.get("epm-done", []));
-const key = t => t.p + "|" + t.t;
+const key = t => t.id;
 const wk = (code, s) => code + "|" + s;
 function isWatched(code, r, s){
   const k = wk(code, s);
@@ -389,9 +448,13 @@ function renderStrip(){
 }
 
 // phases
-let current = PHASE_DATES.findIndex(([a,b])=> TODAY>=d(a) && TODAY<=d(b));
-if (current<0) current = TODAY < d(PHASE_DATES[0][0]) ? 0 : PHASE_DATES.length-1;
-let shown = store.get("epm-phase-view", null); if (shown===null || shown>5) shown = current;
+let current = 0, editing = false;
+function findCurrent(){
+  current = PHASE_DATES.findIndex(([a,b])=> TODAY>=d(a) && TODAY<=d(b));
+  if (current<0) { const next = PHASE_DATES.findIndex(([a])=> TODAY < d(a)); current = next<0 ? PHASE_DATES.length-1 : next; }
+}
+findCurrent();
+let shown = store.get("epm-phase-view", null); if (shown===null || shown>=DATA.phases.length) shown = current;
 let energy = "all";
 let course = store.get("epm-course", "all"), sortByCourse = store.get("epm-sortc", false);
 const CORDER = ["FTX4056S","ACC3009W","ACC3004W","FTX4087S"];
@@ -477,7 +540,7 @@ function renderPhases(){
   document.getElementById("phases").innerHTML = DATA.phases.map((p,i)=>
     `<button class="ph${i===current?" now":""}" aria-pressed="${i===shown}" data-i="${i}">
        ${i===current?'<span class="tag">You are here</span>':'<span class="tag" style="visibility:hidden">·</span>'}
-       <b>${esc(p.name)}</b><span>${esc(p.dates)}</span><span class="ptot">≈ ${fmtMin(phaseTotal(i))} total</span></button>`).join("");
+       <b>${esc(p.name)}</b><span>${fmtRange(p.start, p.end)}</span><span class="ptot">≈ ${fmtMin(phaseTotal(i))} total</span></button>`).join("");
   const p = DATA.phases[shown];
   document.getElementById("goal").textContent = p.goal + " Total time needed: about " + fmtMin(phaseTotal(shown)) + " (" + DATA.menu.filter(t=>t.p===shown+1).length + " tasks).";
   renderPace();
@@ -485,11 +548,12 @@ function renderPhases(){
   document.getElementById("also").textContent = p.also;
   const start = d(PHASE_DATES[current][0]);
   document.getElementById("nowline").innerHTML = TODAY < start
-    ? `Phase 1 starts <b>${fmt(start)}</b>` : `Phase <b>${current+1}</b> of 6`;
+    ? `Phase 1 starts <b>${fmt(start)}</b>` : `Phase <b>${current+1}</b> of ${DATA.phases.length}`;
   renderTasks();
 }
 function renderTasks(){
   syncDoneDates();
+  if (editing) { renderEditTasks(); return; }
   const all = DATA.menu.filter(t=>t.p===shown+1);
   let list = all.filter(t=> (energy==="all" || t.e===energy) && (course==="all" || t.c===course));
   if (sortByCourse) list = list.map((t,k)=>[t,k]).sort((a,b)=>(CORDER.indexOf(a[0].c)-CORDER.indexOf(b[0].c))||(a[1]-b[1])).map(x=>x[0]);
@@ -515,8 +579,124 @@ function renderTasks(){
     </div>`:""}<div class="tl"><span>Time spent</span><input type="number" min="0" step="5" inputmode="numeric" data-tm="${i}" value="${spent(t)||""}" aria-label="Minutes spent on ${esc(t.t)}"><span>min</span><span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another energy level or course.</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
+
+// ---- edit mode: change phases and tasks; every change is saved to epm-edits on this device ----
+const KIND_OF = t => t.v ? "video" : t.tut ? "tut" : t.note ? "notes" : "practice";
+const opt = (pairs, sel) => pairs.map(([v,l])=>`<option value="${v}"${String(v)===String(sel)?" selected":""}>${l}</option>`).join("");
+function renderEditTasks(){
+  const all = DATA.menu.filter(t=>t.p===shown+1 && (course==="all" || t.c===course) && (energy==="all" || t.e===energy));
+  document.getElementById("progress").textContent = `Editing ${all.length} task${all.length===1?"":"s"} in this phase`;
+  const phases = DATA.phases.map((p,i)=>[i+1, "Phase "+(i+1)]);
+  document.getElementById("tasks").innerHTML = all.map(t=>{
+    const added = edits.added.some(x=>x.id===t.id);
+    return `<li class="erow" data-id="${t.id}">
+      <div class="eg">
+        <span class="drag" draggable="true" title="Drag onto a phase above" aria-hidden="true">⠿</span>
+        <input class="et" data-f="t" value="${esc(t.t)}" aria-label="Task title">
+        <select data-f="p" aria-label="Phase">${opt(phases, t.p)}</select>
+        <input class="etm" data-f="tm" value="${esc(t.tm)}" aria-label="Planned time, e.g. 45 min or 1.5 h">
+        <select data-f="e" aria-label="Energy">${opt([["Low","Low"],["Med","Medium"],["High","High"]], t.e)}</select>
+        <select data-f="c" aria-label="Course">${opt(CORDER.map(c=>[c, SHORT[c]]), t.c)}</select>
+        <button class="btn del" data-del="${t.id}" aria-label="Delete ${esc(t.t)}">Delete</button>
+      </div>
+      <div class="eg2">
+        ${added ? `<select data-f="kind" aria-label="Kind of task">${opt([["practice","Practice / study"],["tut","Tutorial"],["notes","Notes"]], KIND_OF(t))}</select>` : ""}
+        <input data-f="memo" value="${esc(t.memo||"")}" placeholder="Note shown on the task (optional)" aria-label="Note">
+        <input data-f="w" value="${esc(t.w||"")}" placeholder="Link label" aria-label="Link label">
+        <input data-f="u" value="${esc(t.u||"")}" placeholder="Link URL" aria-label="Link URL">
+      </div></li>`;
+  }).join("") || `<li class="erow"><span class="note-small">No tasks in this phase${course!=="all"||energy!=="all"?" match the filters":""}. Use “Add a task” above.</span></li>`;
+}
+function setTaskField(id, f, v){
+  const t = DATA.menu.find(x=>x.id===id); if (!t) return;
+  const patch = {[f]: v};
+  if (f === "kind") Object.assign(patch, {tut: v==="tut", note: v==="notes"});
+  Object.assign(t, patch);
+  const a = edits.added.find(x=>x.id===id);
+  if (a) Object.assign(a, patch); else edits.tasks[id] = Object.assign(edits.tasks[id]||{}, patch);
+  saveEdits();
+}
+function renderPhaseForm(){
+  const p = DATA.phases[shown];
+  document.querySelectorAll("#phaseedit [data-pf]").forEach(el=>{ el.value = p[el.dataset.pf] || ""; });
+}
+function setEditing(on){
+  editing = on;
+  document.getElementById("editbtn").setAttribute("aria-pressed", on);
+  document.getElementById("editbtn").textContent = on ? "Done editing" : "Edit plan";
+  document.getElementById("phaseedit").hidden = !on;
+  document.querySelector(".phase-body").hidden = on;
+  if (on) renderPhaseForm();
+  renderPhases(); refresh();
+}
+document.getElementById("editbtn").addEventListener("click", ()=>setEditing(!editing));
+document.getElementById("phaseedit").addEventListener("change", e=>{
+  const f = e.target.dataset.pf; if (!f) return;
+  const p = DATA.phases[shown], v = e.target.value.trim();
+  if ((f==="start" || f==="end") && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { e.target.value = p[f]; return; }
+  const start = f==="start" ? v : p.start, end = f==="end" ? v : p.end;
+  if (start > end) { alert("A phase can't end before it starts."); e.target.value = p[f]; return; }
+  p[f] = v; edits.phases[shown] = Object.assign(edits.phases[shown]||{}, {[f]: v});
+  // keep phases from overlapping: a later end pushes the next phase's start to the day after
+  const nx = DATA.phases[shown+1];
+  if (f === "end" && nx && nx.start <= v) {
+    const s = d(v); s.setDate(s.getDate()+1); const ns = ymd(s);
+    if (ns <= nx.end) { nx.start = ns; edits.phases[shown+1] = Object.assign(edits.phases[shown+1]||{}, {start: ns}); }
+  }
+  saveEdits();
+  syncPhaseDates(); findCurrent(); renderPhases(); refresh();
+});
+document.getElementById("addtask").addEventListener("click", ()=>{
+  const t = {id:"u"+Date.now().toString(36), p:shown+1, t:"New task", tm:"30 min", e:"Med",
+             c: course!=="all" ? course : CORDER[0], w:"", kind:"practice", tut:false, note:false};
+  edits.added.push({...t}); DATA.menu.push(t); saveEdits(); refresh();
+  const inp = document.querySelector(`.erow[data-id="${t.id}"] .et`); if (inp) { inp.focus(); inp.select(); }
+});
+document.getElementById("resetedits").addEventListener("click", ()=>{
+  if (!confirm("Undo every change you've made to the plan on this device? Your ticks stay.")) return;
+  try { localStorage.removeItem("epm-edits"); } catch(e) {}
+  location.reload();
+});
+document.getElementById("tasks").addEventListener("change", e=>{
+  if (!editing) return;
+  const row = e.target.closest(".erow"), f = e.target.dataset.f; if (!row || !f) return;
+  e.stopImmediatePropagation();
+  let v = e.target.value;
+  if (f === "t") { v = v.trim(); if (!v) { e.target.value = DATA.menu.find(x=>x.id===row.dataset.id).t; return; } }
+  if (f === "p") v = +v;
+  if (f === "tm" && !/[0-9]/.test(v)) { alert("Planned time needs a number, like 45 min or 1.5 h."); return; }
+  setTaskField(row.dataset.id, f, v);
+  if (f === "p" || f === "c") { renderPhases(); refresh(); } else { renderStrip(); renderPace(); renderPhaseTotals(); renderWork(); }
+}, true);
+document.getElementById("tasks").addEventListener("click", e=>{
+  const b = e.target.closest("[data-del]"); if (!b || !editing) return;
+  const id = b.dataset.del, t = DATA.menu.find(x=>x.id===id);
+  if (!confirm(`Delete “${t.t}” from the plan?`)) return;
+  const ai = edits.added.findIndex(x=>x.id===id);
+  if (ai >= 0) edits.added.splice(ai, 1); else edits.deleted.push(id);
+  DATA.menu = DATA.menu.filter(x=>x.id!==id); saveEdits(); renderPhases(); refresh();
+});
+// drag a task's handle onto a phase button to move it there
+let dragId = null;
+document.getElementById("tasks").addEventListener("dragstart", e=>{
+  const row = e.target.closest(".erow"); if (!row) return;
+  dragId = row.dataset.id; row.classList.add("dragging");
+  e.dataTransfer.setData("text/plain", dragId); e.dataTransfer.effectAllowed = "move";
+});
+document.getElementById("tasks").addEventListener("dragend", ()=>{
+  dragId = null; document.querySelectorAll(".erow.dragging,.ph.drop").forEach(x=>x.classList.remove("dragging","drop"));
+});
+const phasesEl = document.getElementById("phases");
+phasesEl.addEventListener("dragover", e=>{ const b=e.target.closest(".ph"); if (!b || !dragId) return; e.preventDefault(); document.querySelectorAll(".ph.drop").forEach(x=>x!==b&&x.classList.remove("drop")); b.classList.add("drop"); });
+phasesEl.addEventListener("dragleave", e=>{ const b=e.target.closest(".ph"); if (b && !b.contains(e.relatedTarget)) b.classList.remove("drop"); });
+phasesEl.addEventListener("drop", e=>{
+  const b=e.target.closest(".ph"); if (!b || !dragId) return; e.preventDefault();
+  setTaskField(dragId, "p", +b.dataset.i + 1); dragId = null; renderPhases(); refresh();
+});
 document.getElementById("phases").addEventListener("click", e=>{
-  const b=e.target.closest(".ph"); if(!b) return; shown=+b.dataset.i; store.set("epm-phase-view", shown); renderPhases();
+  const b=e.target.closest(".ph"); if(!b) return; shown=+b.dataset.i; store.set("epm-phase-view", shown);
+  if (editing) renderPhaseForm();
+  renderPhases();
 });
 document.querySelector(".filters").addEventListener("click", e=>{
   const b=e.target.closest(".chip"); if(!b) return; energy=b.dataset.en;
@@ -684,7 +864,7 @@ wkPlot.addEventListener("focusout", ()=>{ if (wkSel<0) document.getElementById("
 renderStrip(); renderPhases(); renderCourses(); renderWork();
 
 // ---- moving progress between the old page, this site and other devices ----
-const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-donedate","epm-course","epm-sortc","epm-phase-view"];
+const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-donedate","epm-course","epm-sortc","epm-phase-view","epm-edits","epm-dd-applied"];
 document.getElementById("snippet").textContent =
   'copy(JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith("epm-")).map(k=>[k,JSON.parse(localStorage.getItem(k))]))))';
 const ioMsg = t => { document.getElementById("syncmsg").textContent = t; };
