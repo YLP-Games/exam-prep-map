@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-19.21">
+<meta name="build" content="2026-10-20.1">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -177,6 +177,7 @@ body{margin:0}
 .tdetail li span:last-child{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 .tdetail em{font-style:normal;color:var(--done);font-size:12px}
 .sess.ro{padding:2px 10px}
+.slab{font-size:12.5px;font-weight:600;color:var(--ink)}
 .sess{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);color:var(--ink);border-radius:8px;padding:2px 2px 2px 4px;font-size:12.5px;white-space:nowrap}
 .tl .sess input{width:52px;padding:2px 4px;font-size:12.5px}
 .sess select{font:inherit;font-size:12.5px;color:var(--ink);background:var(--surface);border:1px solid color-mix(in srgb, currentColor 35%, transparent);border-radius:6px;padding:2px 3px}
@@ -699,12 +700,8 @@ function renderTasks(){
     </label>${t.tut?`<div class="subs">
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}${lock}>Attempted</label>
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}${lock}>Marked</label>
-    </div>`:""}<div class="tl"><span>Time spent</span>${sess(t).map((s,j)=> logEdit ?
-      `<span class="sess"><input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>` :
-      `<span class="sess ro">${fmtMin(+s[1])} ${dayLabel(s[0])}</span>`).join("")}
-      ${dn && !logEdit ? "" : `<span class="sadd"><input type="number" min="1" step="5" inputmode="numeric" data-sm="${i}" placeholder="min" aria-label="Minutes spent on ${esc(t.t)} ${logEdit?"":"today"}">${logEdit ?
-        `<select data-sd="${i}" aria-label="Day you spent them">${whenOptions(TKEY)}</select>` :
-        `<input type="hidden" data-sd="${i}" value="${TKEY}"><span>today</span>`}<button class="btn sbtn" data-sadd="${i}">Add</button></span>`}<span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks for this course in this phase. Try another course.</span></label></li>`;
+    </div>`:""}<div class="tl"><span>Time spent</span>${sessChips(t, i)}
+      ${dn && !logEdit ? "" : t.tut ? addRow(t, i, "a") + addRow(t, i, "m") : addRow(t, i, "")}<span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks for this course in this phase. Try another course.</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
@@ -843,13 +840,31 @@ document.getElementById("cfilters").addEventListener("click", e=>{
   syncCourseChips(); renderTasks();
 });
 syncCourseChips();
-// time sessions: add "N min on <day>", or remove one
-function addSession(i){
-  const t = DATA.menu[i], li = document.querySelector(`[data-sadd="${i}"]`).closest(".sadd");
-  const inp = li.querySelector("[data-sm]"), m = Math.round(parseFloat(inp.value));
+// time sessions: [day, minutes] or, on tutorials, [day, minutes, "a" attempt | "m" marking]
+const PART = {a: "Attempt", m: "Marking"};
+const partOf = (t, s) => t.tut ? (s[2] || "a") : "";
+function sessChips(t, i){
+  const S = sess(t);
+  if (logEdit) return S.map((s,j)=>`<span class="sess">${t.tut ? `<select data-spart="${i}:${j}" aria-label="Attempt or marking">${opt([["a","Attempt"],["m","Marking"]], partOf(t,s))}</select>` : ""}<input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>`).join("");
+  // read-only: one chip per day (per part on tutorials), minutes added up
+  const g = new Map();
+  S.forEach(s=>{ const k = partOf(t,s) + "|" + s[0]; g.set(k, (g.get(k)||0) + (+s[1]||0)); });
+  return [...g].map(([k,m])=>{ const [p, day] = k.split("|");
+    return `<span class="sess ro">${p ? PART[p] + " " : ""}${fmtMin(m)} ${dayLabel(day)}</span>`; }).join("");
+}
+function addRow(t, i, part){
+  return `<span class="sadd" data-i="${i}" data-part="${part}">${part ? `<span class="slab">${PART[part]}</span>` : ""}<input type="number" min="1" step="5" inputmode="numeric" data-sm placeholder="min" aria-label="Minutes ${part ? (part==="m" ? "marking " : "attempting ") : "spent on "}${esc(t.t)} ${logEdit?"":"today"}">${logEdit ?
+    `<select data-sd aria-label="Day you spent them">${whenOptions(TKEY)}</select>` :
+    `<input type="hidden" data-sd value="${TKEY}"><span>today</span>`}<button class="btn sbtn" data-sadd>Add</button></span>`;
+}
+function addSession(el){
+  const box = el.closest(".sadd"), t = DATA.menu[+box.dataset.i], part = box.dataset.part;
+  const inp = box.querySelector("[data-sm]"), m = Math.round(parseFloat(inp.value));
   if (!(m > 0)) { inp.focus(); return; }
+  const day = box.querySelector("[data-sd]").value;
   const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
-  list.push([li.querySelector("[data-sd]").value, m]);
+  const same = list.find(s=>s[0]===day && partOf(t,s)===part);   // same day (and part): add to it
+  if (same) same[1] = (+same[1]||0) + m; else list.push(part ? [day, m, part] : [day, m]);
   sessLog[key(t)] = list; sessionsChanged(t);
 }
 // logging time on a finished task moves its finish day to the latest day logged
@@ -860,14 +875,14 @@ function sessionsChanged(t){
 }
 document.getElementById("tasks").addEventListener("click", e=>{
   if (editing) return;
-  const a = e.target.closest("[data-sadd]"); if (a) { addSession(+a.dataset.sadd); return; }
+  const a = e.target.closest("[data-sadd]"); if (a) { addSession(a); return; }
   const x = e.target.closest("[data-sdel]"); if (!x) return;
   const [i, j] = x.dataset.sdel.split(":").map(Number), t = DATA.menu[i];
   const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
   list.splice(j, 1); sessLog[key(t)] = list; sessionsChanged(t);
 });
 document.getElementById("tasks").addEventListener("keydown", e=>{
-  if (e.key === "Enter" && e.target.dataset.sm !== undefined) { e.preventDefault(); addSession(+e.target.dataset.sm); }
+  if (e.key === "Enter" && e.target.dataset.sm !== undefined) { e.preventDefault(); addSession(e.target); }
 });
 document.getElementById("tasks").addEventListener("change", e=>{
   if (e.target.dataset.redate!==undefined) {
@@ -875,11 +890,12 @@ document.getElementById("tasks").addEventListener("change", e=>{
     store.set("epm-donedate", doneDate); refresh(); return;
   }
   if (e.target.dataset.sm!==undefined || e.target.dataset.sd!==undefined) return;   // new-session inputs: handled by the Add button
-  const se = e.target.dataset.smin || e.target.dataset.sday;
-  if (se) {   // change a logged session's minutes or day (0 minutes removes it)
+  const se = e.target.dataset.smin || e.target.dataset.sday || e.target.dataset.spart;
+  if (se) {   // change a logged session's minutes, day or part (0 minutes removes it)
     const [i, j] = se.split(":").map(Number), t = DATA.menu[i];
     const list = (sessLog[key(t)] || (t.sessions || []).map(s=>[...s]));
-    if (e.target.dataset.sday) list[j][0] = e.target.value;
+    if (e.target.dataset.spart) list[j][2] = e.target.value;
+    else if (e.target.dataset.sday) list[j][0] = e.target.value;
     else { const m = Math.round(parseFloat(e.target.value)); if (m > 0) list[j][1] = m; else list.splice(j, 1); }
     sessLog[key(t)] = list; sessionsChanged(t); return;
   }
