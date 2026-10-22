@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-22.3">
+<meta name="build" content="2026-10-22.4">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -751,8 +751,6 @@ function renderEditTasks(){
       <div class="eg2">
         ${!t.v ? `<select data-f="kind" aria-label="Kind of task">${opt([["video","Video"],["notes","Notes"],["practice","Practice / study"],["tut","Tutorial"]], KIND_OF(t))}</select>` : ""}
         <input data-f="memo" value="${esc(t.memo||"")}" placeholder="Note shown on the task (optional)" aria-label="Note">
-        <input data-f="w" value="${esc(t.w||"")}" placeholder="Link label" aria-label="Link label">
-        <input data-f="u" value="${esc(t.u||"")}" placeholder="Link URL" aria-label="Link URL">
       </div></li>`;
   }).join("") || `<li class="erow"><span class="note-small">No tasks in this phase${course!=="all"||kind!=="all"?" match these filters":""}. Use “Add a task” above.</span></li>`;
 }
