@@ -324,7 +324,7 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
     </div>
     <div class="wk-legend" id="wklegend"></div>
     <details class="wk-tbl"><summary>Show as a table</summary><div class="tbl" id="wktable"></div></details>
-    <p class="note-small">Each task counts at its planned time on the day you ticked it off. Ticks from before the site started recording dates don't appear here. Tap or hover a bar for the breakdown.</p>
+    <p class="note-small">Each task counts at its planned time on the day you ticked it off. The chart and its legend cover the last 7 days; the headline numbers and the table cover every day. Ticks from before the site started recording dates don't appear here. Tap or hover a bar for the breakdown.</p>
   </section>
 
   <section id="how">
@@ -1088,7 +1088,7 @@ document.getElementById("courses").addEventListener("change", e=>{
 // ---- work done per day, stacked by course (like a screen-time chart) ----
 const CVAR = {FTX4056S:"--c1",ACC3009W:"--c2",ACC3004W:"--c3",FTX4087S:"--c4"};
 const SHORT = {FTX4056S:"Applied",ACC3009W:"FR III",ACC3004W:"Tax II",FTX4087S:"Banking"};
-let wkDays = [], wkSel = -1;
+let wkDays = [], wkBars = [], wkSel = -1;
 function renderWork(){
   // every day from DATA.chartFrom (or the last 14 days) up to today
   wkDays = [];
@@ -1098,17 +1098,18 @@ function renderWork(){
   const at = Object.fromEntries(wkDays.map((w,i)=>[w.key,i]));
   const add = (day, c, m) => { if (!(day in at)) return; const w = wkDays[at[day]]; w.by[c] = (w.by[c]||0) + m; w.tot += m; };
   Object.entries(minutesByDay()).forEach(([day, by])=>Object.entries(by).forEach(([c,m])=>add(day, c, m)));
-  const max = Math.max(...wkDays.map(w=>w.tot));
+  // the chart shows the last 7 days (today included); the table and headline numbers cover every day
+  wkBars = wkDays.slice(-7);
+  const max = Math.max(...wkBars.map(w=>w.tot));
   const step = max > 6*60 ? 120 : 60, top = Math.max(step, Math.ceil(max/step)*step);
   let grid = "";
   for (let v=0; v<=top; v+=step) grid += `<div class="wk-grid${v?"":" base"}" style="bottom:${v/top*100}%"><span>${v/60}h</span></div>`;
-  document.getElementById("wkplot").innerHTML = grid + wkDays.map((w,i)=>
+  document.getElementById("wkplot").innerHTML = grid + wkBars.map((w,i)=>
     `<div class="wk-col${i===wkSel?" sel":""}" data-i="${i}" tabindex="0" aria-label="${fmt(w.x)}: ${fmtMin(w.tot)}">` +
     CORDER.filter(c=>w.by[c]).map(c=>`<i style="height:calc(${w.by[c]/top*100}% - 2px);background:var(${CVAR[c]})"></i>`).join("") + `</div>`).join("");
-  document.getElementById("wkx").innerHTML = wkDays.map((w,i)=>{
-    const show = N <= 16 || w.x.getDay() === 1 || i === N-1;          // long ranges: label Mondays and today only
-    const lab = show ? DOW[w.x.getDay()][0] + "<br>" + w.x.getDate() : "";
-    return `<span>${i===N-1 ? "<b>"+lab+"</b>" : lab}</span>`;
+  document.getElementById("wkx").innerHTML = wkBars.map((w,i)=>{
+    const lab = DOW[w.x.getDay()][0] + "<br>" + w.x.getDate();
+    return `<span>${i===wkBars.length-1 ? "<b>"+lab+"</b>" : lab}</span>`;
   }).join("");
   // headline numbers: today, and the average since the first day with anything recorded
   const sum = wkDays.reduce((a,w)=>a+w.tot,0);
@@ -1117,7 +1118,7 @@ function renderWork(){
     `<div><span class="label">Today</span><b>${fmtMin(wkDays[N-1].tot)}</b></div>` +
     `<div><span class="label">Daily average</span><b>${fmtMin(sum/N)}</b></div>` +
     `<div><span class="label">Total</span><b>${fmtMin(sum)}</b></div>`;
-  const per = c => wkDays.reduce((a,w)=>a+(w.by[c]||0),0);
+  const per = c => wkBars.reduce((a,w)=>a+(w.by[c]||0),0);       // legend totals match the bars shown
   document.getElementById("wklegend").innerHTML = CORDER.map(c=>
     `<span><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]} <b>${fmtMin(per(c))}</b></span>`).join("");
   document.getElementById("wktable").innerHTML = `<table><thead><tr><th>Day</th>${CORDER.map(c=>`<th style="text-align:right">${SHORT[c]}</th>`).join("")}<th style="text-align:right">Total</th></tr></thead><tbody>` +
@@ -1125,7 +1126,7 @@ function renderWork(){
   if (wkSel >= 0) showWkTip(wkSel);
 }
 function showWkTip(i){
-  const w = wkDays[i], tip = document.getElementById("wktip"), box = document.getElementById("wk");
+  const w = wkBars[i], tip = document.getElementById("wktip"), box = document.getElementById("wk");
   const col = document.querySelector(`.wk-col[data-i="${i}"]`); if (!col) return;
   tip.innerHTML = `<b>${fmt(w.x)} · ${fmtMin(w.tot)}</b>` + (w.tot ? CORDER.filter(c=>w.by[c]).map(c=>
     `<div><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]}<em>${fmtMin(w.by[c])}</em></div>`).join("") : `<div>Nothing ticked off</div>`);
