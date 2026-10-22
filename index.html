@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-22.2">
+<meta name="build" content="2026-10-22.3">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -202,8 +202,9 @@ select.redate{font-size:12px;padding:1px 4px}
 .pe-grid input,.pe-grid textarea,.erow input,.erow select{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:4px 7px;min-width:0;box-sizing:border-box;width:100%}
 .erow{padding:8px 10px;display:grid;gap:6px}
 .erow .eg{display:grid;grid-template-columns:20px minmax(0,1fr) auto auto auto auto auto;gap:6px;align-items:center}
-.erow .eg2{display:grid;grid-template-columns:20px minmax(0,1fr) minmax(0,1fr) minmax(0,1.4fr);gap:6px}
-.erow .eg2 > :first-child{grid-column:2}
+.erow .eg2{display:flex;flex-wrap:wrap;gap:6px;padding-left:26px}
+.erow .eg2 > *{flex:1 1 160px;width:auto}
+.erow .eg2 > select{flex:0 0 auto}
 .erow select{width:auto}
 .erow input.etm{width:72px}
 .drag{cursor:grab;color:var(--muted);font-size:16px;line-height:1;user-select:none;touch-action:none}
@@ -213,8 +214,6 @@ select.redate{font-size:12px;padding:1px 4px}
   .erow .eg .et{flex:1 1 calc(100% - 30px)}
   .erow .eg > select,.erow .eg > input.etm,.erow .eg > .del{flex:1 1 auto;width:auto}
   .erow .eg > select:first-of-type{margin-left:26px}
-  .erow .eg2{grid-template-columns:20px 1fr}
-  .erow .eg2 > *{grid-column:2}
 }
 .ph.drop{outline:2px dashed var(--accent);outline-offset:2px}
 .cedit{background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:12px;margin:12px 0;display:grid;gap:10px}
@@ -535,7 +534,7 @@ let shown = store.get("epm-phase-view", null); if (shown===null || shown>=DATA.p
 let course = store.get("epm-course", "all"), sortByCourse = store.get("epm-sortc", false);
 // task type: videos, notes, or practice (tutorials, past papers, workshops, questions: everything else)
 let kind = store.get("epm-kind", "all");
-const typeOf = t => t.v ? "video" : t.note ? "notes" : "practice";
+const typeOf = t => t.v || t.kind === "video" ? "video" : t.note ? "notes" : "practice";
 const shows = t => (course==="all" || t.c===course) && (kind==="all" || typeOf(t)===kind);
 const CORDER = ["FTX4056S","ACC3009W","ACC3004W","FTX4087S"];
 
@@ -732,7 +731,7 @@ function renderTasks(){
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
 // ---- edit mode: change phases and tasks; every change is saved to epm-edits on this device ----
-const KIND_OF = t => t.v ? "video" : t.tut ? "tut" : t.note ? "notes" : "practice";
+const KIND_OF = t => t.v || t.kind === "video" ? "video" : t.tut ? "tut" : t.note ? "notes" : "practice";
 const opt = (pairs, sel) => pairs.map(([v,l])=>`<option value="${v}"${String(v)===String(sel)?" selected":""}>${l}</option>`).join("");
 function renderEditTasks(){
   const all = DATA.menu.filter(t=>t.p===shown+1 && shows(t));
@@ -750,7 +749,7 @@ function renderEditTasks(){
         <button class="btn del" data-del="${t.id}" aria-label="Delete ${esc(t.t)}">Delete</button>
       </div>
       <div class="eg2">
-        ${added ? `<select data-f="kind" aria-label="Kind of task">${opt([["practice","Practice / study"],["tut","Tutorial"],["notes","Notes"]], KIND_OF(t))}</select>` : ""}
+        ${!t.v ? `<select data-f="kind" aria-label="Kind of task">${opt([["video","Video"],["notes","Notes"],["practice","Practice / study"],["tut","Tutorial"]], KIND_OF(t))}</select>` : ""}
         <input data-f="memo" value="${esc(t.memo||"")}" placeholder="Note shown on the task (optional)" aria-label="Note">
         <input data-f="w" value="${esc(t.w||"")}" placeholder="Link label" aria-label="Link label">
         <input data-f="u" value="${esc(t.u||"")}" placeholder="Link URL" aria-label="Link URL">
