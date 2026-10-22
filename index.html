@@ -79,12 +79,7 @@ header{display:grid;gap:6px;margin-bottom:28px}
 .ph.now{border-color:var(--accent);box-shadow:inset 0 -3px 0 var(--accent)}
 .ph[aria-pressed="true"]{background:var(--accent-soft)}
 .ph .tag{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
-.phase-body{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;margin-bottom:14px}
-@media (max-width:760px){.phase-body{grid-template-columns:1fr}}
-.side{display:grid;gap:10px;align-content:start}
-.side > div{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:10px 12px}
-.side .one{background:var(--mark);color:var(--mark-ink);border-color:transparent}
-.side .one .label{color:var(--mark-ink)}
+.phase-body{margin-bottom:14px}
 
 .filters{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0 10px;font-size:13px;color:var(--muted)}
 .chip{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:999px;padding:3px 10px;font:600 12px var(--body);cursor:pointer}
@@ -272,8 +267,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
         <label>Name<input data-pf="name"></label>
         <label>Starts<input type="date" data-pf="start"></label>
         <label>Ends<input type="date" data-pf="end"></label>
-        <label class="wide">If you only do one thing today<input data-pf="one"></label>
-        <label class="wide">Alongside<input data-pf="also"></label>
       </div>
       <div class="row"><button class="btn" id="addtask">+ Add a task to this phase</button><button class="btn" id="resetedits">Undo all my edits</button></div>
     </div>
@@ -281,10 +274,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
     <div class="phase-body">
       <div><p class="pace" id="pace"></p>
         <div class="today" id="today"></div></div>
-      <div class="side">
-        <div class="one"><span class="label">If you only do one thing today</span><div id="one"></div></div>
-        <div><span class="label">Alongside</span><div id="also"></div></div>
-      </div>
     </div>
     <div class="filters">
       <span class="progress" id="progress"></span>
@@ -678,10 +667,7 @@ function renderPhases(){
     `<button class="ph${i===current?" now":""}" aria-pressed="${i===shown}" data-i="${i}">
        ${i===current?'<span class="tag">You are here</span>':'<span class="tag" style="visibility:hidden">·</span>'}
        <b>${esc(p.name)}</b><span>${esc(p.label || fmtRange(p.start, p.end))}</span><span class="ptot">≈ ${fmtMin(phaseTotal(i))} total</span></button>`).join("");
-  const p = DATA.phases[shown];
   renderPace();
-  document.getElementById("one").textContent = p.one;
-  document.getElementById("also").textContent = p.also;
   const start = d(PHASE_DATES[current][0]);
   document.getElementById("nowline").innerHTML = TODAY < start
     ? `Phase 1 starts <b>${fmt(start)}</b>` : `Phase <b>${current+1}</b> of ${DATA.phases.length}`;
