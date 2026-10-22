@@ -255,6 +255,8 @@ details.wk-tbl{margin-top:10px;font-size:13px}
 details.wk-tbl summary{cursor:pointer;color:var(--accent)}
 details.wk-tbl table{min-width:0;font-size:13px;font-variant-numeric:tabular-nums}
 details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
+.wk-all{margin:8px 0 0;font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.wk-all b{color:var(--ink)}
 </style>
 </head>
 <body>
@@ -323,8 +325,8 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
       <div class="wk-tip" id="wktip" role="tooltip"></div>
     </div>
     <div class="wk-legend" id="wklegend"></div>
-    <details class="wk-tbl"><summary>Show as a table</summary><div class="tbl" id="wktable"></div></details>
-    <p class="note-small">Each task counts at its planned time on the day you ticked it off. The chart and its legend cover the last 7 days; the headline numbers and the table cover every day. Ticks from before the site started recording dates don't appear here. Tap or hover a bar for the breakdown.</p>
+    <details class="wk-tbl"><summary>Show as a table</summary><div class="tbl" id="wktable"></div><p class="wk-all" id="wkall"></p></details>
+    <p class="note-small">Each task counts at its planned time on the day you ticked it off. The numbers, chart and legend cover the last 7 days; the table covers every day, with the overall average and total under it. Ticks from before the site started recording dates don't appear here. Tap or hover a bar for the breakdown.</p>
   </section>
 
   <section id="how">
@@ -1098,7 +1100,7 @@ function renderWork(){
   const at = Object.fromEntries(wkDays.map((w,i)=>[w.key,i]));
   const add = (day, c, m) => { if (!(day in at)) return; const w = wkDays[at[day]]; w.by[c] = (w.by[c]||0) + m; w.tot += m; };
   Object.entries(minutesByDay()).forEach(([day, by])=>Object.entries(by).forEach(([c,m])=>add(day, c, m)));
-  // the chart shows the last 7 days (today included); the table and headline numbers cover every day
+  // the chart and headline numbers cover the last 7 days (today included); the table covers every day
   wkBars = wkDays.slice(-7);
   const max = Math.max(...wkBars.map(w=>w.tot));
   const step = max > 6*60 ? 120 : 60, top = Math.max(step, Math.ceil(max/step)*step);
@@ -1111,13 +1113,15 @@ function renderWork(){
     const lab = DOW[w.x.getDay()][0] + "<br>" + w.x.getDate();
     return `<span>${i===wkBars.length-1 ? "<b>"+lab+"</b>" : lab}</span>`;
   }).join("");
-  // headline numbers: today, and the average since the first day with anything recorded
-  const sum = wkDays.reduce((a,w)=>a+w.tot,0);
-  document.getElementById("wkwhen").textContent = "Since " + fmt(wkDays[0].x);
+  // headline numbers over the last 7 days; the all-time figures sit under the table
+  const sum7 = wkBars.reduce((a,w)=>a+w.tot,0), sum = wkDays.reduce((a,w)=>a+w.tot,0);
+  document.getElementById("wkwhen").textContent = "Last " + wkBars.length + " days";
   document.getElementById("wkhero").innerHTML =
     `<div><span class="label">Today</span><b>${fmtMin(wkDays[N-1].tot)}</b></div>` +
-    `<div><span class="label">Daily average</span><b>${fmtMin(sum/N)}</b></div>` +
-    `<div><span class="label">Total</span><b>${fmtMin(sum)}</b></div>`;
+    `<div><span class="label">Daily average</span><b>${fmtMin(sum7/wkBars.length)}</b></div>` +
+    `<div><span class="label">Total</span><b>${fmtMin(sum7)}</b></div>`;
+  document.getElementById("wkall").innerHTML =
+    `Since ${fmt(wkDays[0].x)} · daily average <b>${fmtMin(sum/N)}</b> · total <b>${fmtMin(sum)}</b>`;
   const per = c => wkBars.reduce((a,w)=>a+(w.by[c]||0),0);       // legend totals match the bars shown
   document.getElementById("wklegend").innerHTML = CORDER.map(c=>
     `<span><i class="sw" style="background:var(${CVAR[c]})"></i>${SHORT[c]} <b>${fmtMin(per(c))}</b></span>`).join("");
