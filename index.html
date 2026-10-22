@@ -125,8 +125,6 @@ td.dates{font-family:var(--mono);font-size:12px;color:var(--muted)}
 .dt{font:inherit;border:0;background:none;color:inherit;padding:0 3px;border-radius:3px;cursor:pointer}.dt.db{color:var(--todo);font-weight:600;background:var(--todo-soft)}.dt.du{color:var(--muted)}.dt:hover{outline:1px solid var(--rule)}.part{font-weight:400;color:var(--muted);font-size:12px;margin-left:4px}
 .pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
 .p-done{background:var(--done-soft);color:var(--done)} .p-todo{background:var(--todo-soft);color:var(--todo)} .p-up{background:var(--accent-soft);color:var(--accent)}
-footer{margin-top:56px;border-top:1px solid var(--rule);padding-top:18px;color:var(--muted);font-size:13px;display:grid;gap:8px;max-width:90ch}
-footer a{color:var(--accent)}
 @media (prefers-reduced-motion:no-preference){.tasks li{transition:background .15s}}
 .tl{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--muted);padding:6px 0 0 30px}
 .tl input{width:76px;font:inherit;padding:4px 6px;border:1px solid color-mix(in srgb, currentColor 35%, transparent);border-radius:6px;background:transparent;color:inherit}
@@ -144,13 +142,8 @@ footer a{color:var(--accent)}
 .tnum b{color:var(--fg);font-variant-numeric:tabular-nums}
 .tsub{font-size:13px}
 body{margin:0}
-.sync{display:grid;gap:8px}
-.sync .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.sync textarea{width:100%;box-sizing:border-box;min-height:70px;font:12px var(--mono);padding:8px;border:1px solid var(--rule);border-radius:6px;background:var(--surface);color:var(--ink)}
-.sync code{font:11.5px var(--mono);word-break:break-all;background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:6px 8px;display:block}
 .btn{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:6px;padding:5px 12px;font:600 13px var(--body);cursor:pointer}
 .btn:hover{border-color:var(--accent)}
-#syncmsg{font-weight:600;color:var(--done)}
 .tbar.seg{display:flex;gap:2px;height:10px}
 .tseg{border:0;padding:0;height:100%;cursor:pointer;flex:none;min-width:4px}
 .tseg[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:1px}
@@ -308,26 +301,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   </section>
 
   <div id="courses"></div>
-
-  <section id="progress-io">
-    <div class="shead"><h2>Your progress</h2></div>
-    <div class="sync">
-      <p class="note-small">Ticks live in this browser. To bring them across from the old Exam Prep Map page, open the old page on your laptop, press F12, go to Console, paste this line and press Enter. It copies your progress to the clipboard:</p>
-      <code id="snippet"></code>
-      <p class="note-small">Then paste it below and press Import. You can also use Export here to move progress to another device.</p>
-      <textarea id="iotext" placeholder="Paste exported progress here" aria-label="Progress data"></textarea>
-      <div class="row">
-        <button class="btn" id="doimport">Import</button>
-        <button class="btn" id="doexport">Export</button>
-        <span id="syncmsg" role="status"></span>
-      </div>
-    </div>
-  </section>
-
-  <footer>
-    <div>Video counts come from your course outlines, UCT's 2026 term dates and the 2026 public holidays, with your own watched/not-watched ticks from the spreadsheet as of 12 Oct. Exam % needed assumes the coursework you haven't got back yet matches your average so far; Banking's figure is optimistic because your 100% quizzes lift the average: if the project comes back at 70% you'd need about 63%. Applied Investments: if Test 2 is 50% you'd need about 74%.</div>
-    <div>FR III: the Amathuba pages put leases week 1 in the week of 21 Sep and deferred tax assets in the week of 28 Sep. The course outline (and the table below) has them the other way round.</div>
-  </footer>
 </div>
 
 <script>
@@ -1124,39 +1097,6 @@ wkPlot.addEventListener("focusin", e=>{ const c=e.target.closest(".wk-col"); if 
 wkPlot.addEventListener("focusout", ()=>{ if (wkSel<0) document.getElementById("wktip").style.display="none"; });
 
 renderStrip(); renderPhases(); renderCourses(); renderWork();
-
-// ---- moving progress between the old page, this site and other devices ----
-const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-sessions","epm-donedate","epm-course","epm-sortc","epm-hidedone","epm-phase-view","epm-edits","epm-dd-applied"];
-document.getElementById("snippet").textContent =
-  'copy(JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith("epm-")).map(k=>[k,JSON.parse(localStorage.getItem(k))]))))';
-const ioMsg = t => { document.getElementById("syncmsg").textContent = t; };
-document.getElementById("doexport").addEventListener("click", ()=>{
-  const out = {}; IO_KEYS.forEach(k=>{ const v = store.get(k, undefined); if (v !== undefined) out[k] = v; });
-  const txt = JSON.stringify(out);
-  document.getElementById("iotext").value = txt;
-  try { navigator.clipboard.writeText(txt); ioMsg("Copied to clipboard. Paste it into Import on the other device."); }
-  catch(e) { ioMsg("Copy the text in the box above."); }
-});
-document.getElementById("doimport").addEventListener("click", ()=>{
-  let got;
-  try { got = JSON.parse(document.getElementById("iotext").value.trim()); } catch(e) { ioMsg("That isn't valid progress data. Copy it again and paste the whole thing."); return; }
-  if (!got || typeof got !== "object" || !IO_KEYS.some(k=>k in got)) { ioMsg("No Exam Prep Map progress found in that text."); return; }
-  const hasLocal = ["epm-done","epm-watch","epm-tut","epm-time","epm-sessions"].some(k=>Object.keys(store.get(k, {})).length);
-  if (hasLocal && !confirm("Replace the ticks already saved on this site with the pasted ones?")) return;
-  // clear first, so the one-off first-run steps above run again for anything the paste doesn't include
-  IO_KEYS.forEach(k=>{ try { localStorage.removeItem(k); } catch(e) {} });
-  IO_KEYS.forEach(k=>{
-    if (!(k in got)) return;
-    let v = got[k];
-    if (typeof v === "string" && k !== "epm-course") { try { v = JSON.parse(v); } catch(e) {} }   // raw localStorage strings
-    store.set(k, v);
-  });
-  // anything stamped as finished today came across with the import, not from work done today
-  const dd = store.get("epm-donedate", null);
-  if (dd) { Object.keys(dd).forEach(k=>{ if (dd[k] === TKEY) dd[k] = "seed"; }); store.set("epm-donedate", dd); }
-  store.set("epm-import-seed", true);
-  location.reload();
-});
 </script>
 </body>
 </html>
