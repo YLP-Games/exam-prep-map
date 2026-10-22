@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-20.2">
+<meta name="build" content="2026-10-22.1">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -217,6 +217,14 @@ select.redate{font-size:12px;padding:1px 4px}
   .erow .eg2 > *{grid-column:2}
 }
 .ph.drop{outline:2px dashed var(--accent);outline-offset:2px}
+.cedit{background:var(--accent-soft);border:1px solid var(--accent);border-radius:10px;padding:12px;margin:12px 0;display:grid;gap:10px}
+.cedit .row{display:flex;flex-wrap:wrap;gap:8px}
+.crow{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:8px 10px;display:grid;gap:6px}
+.crow-top{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto auto;gap:6px;align-items:center}
+.crow-dates{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.crow input,.crow select{font:inherit;font-size:13.5px;color:var(--ink);background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:4px 7px;min-width:0;box-sizing:border-box}
+.crow-dates input[type=date]{width:auto}
+@media (max-width:640px){.crow-top{grid-template-columns:1fr 1fr}.crow-top input{grid-column:1/-1}}
 .erow.dragging{opacity:.5}
 /* work per day: stacked bars by course */
 :root{--c1:#2a78d6;--c2:#eb6834;--c3:#1baf7a;--c4:#eda100}
@@ -398,6 +406,12 @@ function saveEdits(){ store.set("epm-edits", edits); }
   edits.added.forEach(t=>{ if (!DATA.menu.some(x=>x.id===t.id)) DATA.menu.push({...t}); });
   DATA.menu.forEach(t=>{ if (edits.tasks[t.id]) Object.assign(t, edits.tasks[t.id]); });
   if (edits.deleted.length) DATA.menu = DATA.menu.filter(t=>!edits.deleted.includes(t.id));
+  // course details (exam, venue, seat, target…) and lecture tables you've changed
+  edits.courses = edits.courses || {};
+  Object.entries(edits.courses).forEach(([code, ch])=>{
+    const c = DATA.courses.find(x=>x.code===code); if (!c) return;
+    Object.assign(c, JSON.parse(JSON.stringify(ch)));
+  });
 })();
 syncPhaseDates();
 const fmtRange = (a, b) => { const x=d(a), y=d(b);
@@ -418,9 +432,10 @@ function isWatched(code, r, s){
   return defWatched(r, s);
 }
 function defWatched(r, s){                           // spreadsheet status as of the as-at date, plus lectures reported watched since (r.watched)
-  return (r.watched || []).includes(s) || (d(s) < ASAT && !r.behind.includes(s));
+  if (!r) return false;                               // a lecture date you've since removed from the table
+  return (r.watched || []).includes(s) || (d(s) < ASAT && !(r.behind || []).includes(s));
 }
-const rowOf = (code, s) => DATA.courses.find(c=>c.code===code).rows.find(r=>r.dates.includes(s));
+const rowOf = (code, s) => (DATA.courses.find(c=>c.code===code)?.rows || []).find(r=>r.dates.includes(s));
 const watchedCS = (code, s) => isWatched(code, rowOf(code, s), s);
 function taskDone(t){
   if (t.v) return t.v.every(([c,s])=>watchedCS(c,s));
@@ -932,8 +947,41 @@ function status(c, r){
   if (tocome===r.dates.length) return `<span class="pill p-up">Upcoming</span>`;
   return `<span class="pill p-up">${tocome} to come</span>`;
 }
+// ---- editing a course: exam date/time, venue, seat, target, and its lecture table ----
+let courseEdit = null;   // code of the course being edited
+function courseEditHTML(c){
+  const f = (label, field, type="text", extra="") =>
+    `<label>${label}<input type="${type}" data-cf="${field}" value="${esc(c[field] ?? "")}" ${extra}></label>`;
+  const rows = c.rows.map((r,ri)=>`<div class="crow">
+      <div class="crow-top">
+        <input data-rf="topic" data-r="${ri}" value="${esc(r.topic)}" aria-label="Topic">
+        <input data-rf="sub" data-r="${ri}" value="${esc(r.sub||"")}" placeholder="Subtitle (optional)" aria-label="Subtitle">
+        <select data-rf="sem" data-r="${ri}" aria-label="Semester">${opt([[1,"Semester 1"],[2,"Semester 2"]], r.sem)}</select>
+        <button class="btn del" data-rrem="${ri}">Delete topic</button>
+      </div>
+      <div class="crow-dates">${r.dates.map(s=>`<span class="sess ro">${fmt(d(s))}<button class="x" data-rdel="${ri}:${s}" aria-label="Remove lecture ${fmt(d(s))}">×</button></span>`).join("")}
+        <span class="sadd"><input type="date" data-rnew="${ri}" aria-label="New lecture date for ${esc(r.topic)}"><button class="btn sbtn" data-radd="${ri}">Add lecture</button></span></div>
+    </div>`).join("");
+  return `<div class="cedit">
+      <div class="pe-grid">${f("Exam date","exam","date")}${f("Time","time")}${f("Venue","venue")}${f("Seat","seat")}
+        ${f("Target %","target","number",'step="1" min="0" max="100"')}${f("Exam % needed","need","number",'step="0.1" min="0" max="100"')}
+        <label class="wide">Note under the heading<textarea data-cf="lever" rows="2">${esc(c.lever||"")}</textarea></label></div>
+      <p class="note-small" style="margin:4px 0 0">Lectures: adding a date also adds a video task for it to the phase that date falls in. Changes save as you go, on this device.</p>
+      ${rows}
+      <div class="row"><button class="btn" data-addtopic>+ Add a topic</button><button class="btn" data-creset>Undo my changes to this course</button></div>
+    </div>`;
+}
+function saveCourse(c){
+  edits.courses[c.code] = JSON.parse(JSON.stringify({exam:c.exam, time:c.time, venue:c.venue, seat:c.seat, target:c.target, need:c.need, lever:c.lever, rows:c.rows}));
+  saveEdits();
+}
+function phaseForDay(s){
+  const x = s < TKEY ? TKEY : s, i = DATA.phases.findIndex(p=>x>=p.start && x<=p.end);
+  return i >= 0 ? i+1 : (x < DATA.phases[0].start ? 1 : DATA.phases.length);
+}
 function renderCourses(){
   document.getElementById("courses").innerHTML = DATA.courses.map(c=>{
+    const ed = courseEdit === c.code;
     const e=d(c.exam), hasS1=c.rows.some(r=>r.sem===1), s=stats(c); let rows="", last=null;
     c.rows.forEach(r=>{
       const sem = r.sem===1?"First semester":"Second semester";
@@ -945,7 +993,8 @@ function renderCourses(){
     const tdone = t ? t[4] + tutsDone(c.code) : 0;
     return `<section id="${c.code}">
       <div class="shead"><h2><span class="code">${c.code}</span>${esc(c.name)}</h2>
-        <div class="when">Exam <b>${fmt(e)}, ${c.time}</b> · ${esc(c.venue)}, seat ${c.seat}</div></div>
+        <div class="when">Exam <b>${fmt(e)}, ${esc(c.time)}</b> · ${esc(c.venue)}, seat ${esc(c.seat)} <button class="btn editbtn" data-cedit="${c.code}" aria-pressed="${ed}">${ed ? "Done editing" : "Edit"}</button></div></div>
+      ${ed ? courseEditHTML(c) : ""}
       <p class="lever">${esc(c.lever)}</p>
       <div class="facts">
         <span><b>${s.behind}</b> videos behind (${s.vhrs.toFixed(1)} h at ${c.vlen} h each)</span>
@@ -958,11 +1007,68 @@ function renderCourses(){
     </section>`;
   }).join("");
 }
+const courseOf = el => DATA.courses.find(c=>c.code===el.closest("section").id);
+function courseChanged(c){ saveCourse(c); const y = window.scrollY; refresh(); window.scrollTo(0, y); }
 document.getElementById("courses").addEventListener("click", e=>{
+  const ce = e.target.closest("[data-cedit]");
+  if (ce) { courseEdit = courseEdit === ce.dataset.cedit ? null : ce.dataset.cedit; const y = window.scrollY; renderCourses(); window.scrollTo(0, y); return; }
+  const add = e.target.closest("[data-radd]");
+  if (add) {
+    const c = courseOf(add), r = c.rows[+add.dataset.radd], s = add.parentElement.querySelector("[data-rnew]").value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return;
+    if (c.rows.some(x=>x.dates.includes(s))) { alert(`${fmt(d(s))} is already in the ${c.name} table.`); return; }
+    r.dates = [...r.dates, s].sort();
+    if (d(s) < ASAT) r.behind = [...(r.behind||[]), s];        // a new past lecture starts as not watched
+    // and a video task to tick it off
+    const vt = {id:"u"+Date.now().toString(36), p:phaseForDay(s), t:`${SHORT[c.code]||c.code} video ${fmt(d(s))}: ${r.topic}`,
+                tm: c.vlen < 1 ? Math.round(c.vlen*60)+" min" : c.vlen+" h", c:c.code, w:"", kind:"video", v:[[c.code, s]]};
+    edits.added.push({...vt}); DATA.menu.push(vt);
+    courseChanged(c); return;
+  }
+  const del = e.target.closest("[data-rdel]");
+  if (del) {
+    const c = courseOf(del), [ri, s] = [+del.dataset.rdel.split(":")[0], del.dataset.rdel.split(":")[1]], r = c.rows[ri];
+    if (!confirm(`Remove the ${fmt(d(s))} lecture from ${r.topic}?`)) return;
+    r.dates = r.dates.filter(x=>x!==s); r.behind = (r.behind||[]).filter(x=>x!==s);
+    // remove video tasks the site added for that lecture
+    const gone = edits.added.filter(t=>t.v && t.v.length===1 && t.v[0][0]===c.code && t.v[0][1]===s).map(t=>t.id);
+    edits.added = edits.added.filter(t=>!gone.includes(t.id)); DATA.menu = DATA.menu.filter(t=>!gone.includes(t.id));
+    courseChanged(c); return;
+  }
+  const rem = e.target.closest("[data-rrem]");
+  if (rem) {
+    const c = courseOf(rem), r = c.rows[+rem.dataset.rrem];
+    if (!confirm(`Delete the topic “${r.topic}” and its ${r.dates.length} lecture date${r.dates.length===1?"":"s"}?`)) return;
+    c.rows.splice(+rem.dataset.rrem, 1); courseChanged(c); return;
+  }
+  if (e.target.closest("[data-addtopic]")) {
+    const c = courseOf(e.target);
+    c.rows.push({topic:"New topic", sem: c.rows.length ? c.rows[c.rows.length-1].sem : 2, dates:[], behind:[], note:"", sub:""});
+    courseChanged(c); return;
+  }
+  if (e.target.closest("[data-creset]")) {
+    const c = courseOf(e.target);
+    if (!confirm(`Undo every change you've made to ${c.name} on this device?`)) return;
+    delete edits.courses[c.code]; saveEdits(); location.reload(); return;
+  }
   const b=e.target.closest(".dt"); if(!b) return;
   setWatched(b.dataset.c, b.dataset.s, b.getAttribute("aria-pressed")!=="true"); saveWatch();
   const y=window.scrollY; refresh(); window.scrollTo(0,y);
   const nb=document.querySelector(`.dt[data-c="${b.dataset.c}"][data-s="${b.dataset.s}"]`); if(nb) nb.focus({preventScroll:true});
+});
+document.getElementById("courses").addEventListener("change", e=>{
+  const cf = e.target.dataset.cf, rf = e.target.dataset.rf; if (!cf && !rf) return;
+  const c = courseOf(e.target); let v = e.target.value.trim();
+  if (cf) {
+    if (cf === "exam" && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { e.target.value = c.exam; return; }
+    if (cf === "target" || cf === "need") { v = parseFloat(v); if (isNaN(v)) { e.target.value = c[cf]; return; } }
+    c[cf] = v;
+  } else {
+    const r = c.rows[+e.target.dataset.r];
+    if (rf === "topic" && !v) { e.target.value = r.topic; return; }
+    r[rf] = rf === "sem" ? +v : v;
+  }
+  courseChanged(c);
 });
 
 // ---- work done per day, stacked by course (like a screen-time chart) ----
