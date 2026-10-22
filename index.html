@@ -81,7 +81,6 @@ header{display:grid;gap:6px;margin-bottom:28px}
 .ph .tag{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
 .phase-body{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px;margin-bottom:14px}
 @media (max-width:760px){.phase-body{grid-template-columns:1fr}}
-.goal{font-size:17px;line-height:1.45;max-width:62ch}
 .side{display:grid;gap:10px;align-content:start}
 .side > div{background:var(--surface);border:1px solid var(--rule);border-radius:8px;padding:10px 12px}
 .side .one{background:var(--mark);color:var(--mark-ink);border-color:transparent}
@@ -140,7 +139,7 @@ footer a{color:var(--accent)}
 .tl input{width:76px;font:inherit;padding:4px 6px;border:1px solid color-mix(in srgb, currentColor 35%, transparent);border-radius:6px;background:transparent;color:inherit}
 .tl .plan{margin-left:auto}
 .ptot{font-weight:600;margin-top:2px}
-.pace{margin:10px 0 0;font-size:15px;color:var(--muted)}
+.pace{margin:0;font-size:15px;color:var(--muted)}
 .pace b{color:var(--fg);font-weight:650}
 .nb{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;font-weight:700;
   padding:2px 6px;border-radius:5px;margin-right:7px;vertical-align:1px;
@@ -260,7 +259,7 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   <header>
     <span class="asat" id="asat"></span>
     <h1>Exam Prep Map</h1>
-    <p class="lede">Your guide to 19 November. You watch the lecture videos and go to tutorials. Each phase has one goal and a menu of small tasks: pick by time, tick them off, switch when you get bored. Your spreadsheet has the same menu with links to every file.</p>
+    <p class="lede">Your guide to 19 November. You watch the lecture videos and go to tutorials. Each phase has a menu of small tasks: pick by time, tick them off, switch when you get bored. Your spreadsheet has the same menu with links to every file.</p>
   </header>
 
   <div class="strip" id="strip"></div>
@@ -273,7 +272,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
         <label>Name<input data-pf="name"></label>
         <label>Starts<input type="date" data-pf="start"></label>
         <label>Ends<input type="date" data-pf="end"></label>
-        <label class="wide">The one goal<textarea data-pf="goal" rows="2"></textarea></label>
         <label class="wide">If you only do one thing today<input data-pf="one"></label>
         <label class="wide">Alongside<input data-pf="also"></label>
       </div>
@@ -281,7 +279,7 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
     </div>
     <div class="phases" id="phases" role="group" aria-label="Phases"></div>
     <div class="phase-body">
-      <div><span class="label">The one goal</span><p class="goal" id="goal"></p><p class="pace" id="pace"></p>
+      <div><p class="pace" id="pace"></p>
         <div class="today" id="today"></div></div>
       <div class="side">
         <div class="one"><span class="label">If you only do one thing today</span><div id="one"></div></div>
@@ -682,7 +680,6 @@ function renderPhases(){
        ${i===current?'<span class="tag">You are here</span>':'<span class="tag" style="visibility:hidden">·</span>'}
        <b>${esc(p.name)}</b><span>${esc(p.label || fmtRange(p.start, p.end))}</span><span class="ptot">≈ ${fmtMin(phaseTotal(i))} total</span></button>`).join("");
   const p = DATA.phases[shown];
-  document.getElementById("goal").textContent = p.goal + " Total time needed: about " + fmtMin(phaseTotal(shown)) + " (" + DATA.menu.filter(t=>t.p===shown+1).length + " tasks).";
   renderPace();
   document.getElementById("one").textContent = p.one;
   document.getElementById("also").textContent = p.also;
