@@ -49,7 +49,6 @@ h1,h2,h3{font-family:var(--display);font-stretch:85%;text-wrap:balance;margin:0}
 h1{font-size:clamp(30px,5vw,44px);font-weight:800;letter-spacing:-.01em;line-height:1.05}
 h2{font-size:clamp(22px,3.2vw,30px);font-weight:750}
 h3{font-size:18px;font-weight:750}
-.lede{color:var(--muted);max-width:68ch;margin:10px 0 0}
 .asat{font-family:var(--mono);font-size:12px;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
 header{display:grid;gap:6px;margin-bottom:28px}
 .label{font-family:var(--mono);font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
@@ -111,8 +110,7 @@ section{margin-top:48px;scroll-margin-top:16px}
 .shead .when{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
 .shead .when b{color:var(--ink)}
 .shead h2 .code{font-size:.6em;margin-right:8px;vertical-align:middle}
-.lever{margin:12px 0;max-width:80ch}
-.facts{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);margin-bottom:12px;font-variant-numeric:tabular-nums}
+.facts{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--muted);margin:12px 0;font-variant-numeric:tabular-nums}
 .facts b{color:var(--ink)}
 .tbl{overflow-x:auto;background:var(--surface);border:1px solid var(--rule);border-radius:10px}
 table{border-collapse:collapse;width:100%;min-width:640px;font-size:14px}
@@ -254,7 +252,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   <header>
     <span class="asat" id="asat"></span>
     <h1>Exam Prep Map</h1>
-    <p class="lede">Your guide to 19 November. You watch the lecture videos and go to tutorials. Each phase has a menu of small tasks: pick by time, tick them off, switch when you get bored. Your spreadsheet has the same menu with links to every file.</p>
   </header>
 
   <div class="strip" id="strip"></div>
@@ -293,9 +290,9 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
       <button class="chip" data-ki="video" aria-pressed="false">Videos</button>
       <button class="chip" data-ki="notes" aria-pressed="false">Notes</button>
       <button class="chip" data-ki="practice" aria-pressed="false" title="Tutorials, past papers, workshops and other questions">Practice</button>
+      <button class="chip sortbtn" id="hidedone" aria-pressed="false">Hide completed</button>
     </div>
     <ul class="tasks" id="tasks"></ul>
-    <p class="note-small">Ticking a video or tutorial task updates the videos behind, tutorials to do and catch-up hours above and in the course tables. Tutorials have Attempted and Marked boxes: the main box ticks itself once a tutorial is marked, and an attempted one counts as about 15 minutes of catch-up (just the marking left). You can also click any date in a course table to mark that video watched. Ticks are saved in this browser only, so tick on the device you usually use.</p>
   </section>
 
   <section id="work">
@@ -509,7 +506,7 @@ function findCurrent(){
 }
 findCurrent();
 let shown = store.get("epm-phase-view", null); if (shown===null || shown>=DATA.phases.length) shown = current;
-let course = store.get("epm-course", "all"), sortByCourse = store.get("epm-sortc", false);
+let course = store.get("epm-course", "all"), sortByCourse = store.get("epm-sortc", false), hideDone = store.get("epm-hidedone", false);
 // task type: videos, notes, or practice (tutorials, past papers, workshops, questions: everything else)
 let kind = store.get("epm-kind", "all");
 const typeOf = t => t.v || t.kind === "video" ? "video" : t.note ? "notes" : "practice";
@@ -681,6 +678,7 @@ function renderTasks(){
   if (sortByCourse) list = list.map((t,k)=>[t,k]).sort((a,b)=>(CORDER.indexOf(a[0].c)-CORDER.indexOf(b[0].c))||(a[1]-b[1])).map(x=>x[0]);
   list = [...list.filter(t=>!taskDone(t)), ...list.filter(taskDone)];   // done sinks; attempted-only is not done
   const shownDone = list.filter(taskDone).length;
+  if (hideDone) list = list.filter(t=>!taskDone(t));
   const n = all.filter(taskDone).length;
   const pm = all.reduce((a,t)=>a+spent(t),0);
   const timeTxt = ` · ${fmtMin(pm)} logged of ${fmtMin(phaseTotal(shown))} estimated`;
@@ -700,7 +698,7 @@ function renderTasks(){
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}${lock}>Attempted</label>
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}${lock}>Marked</label>
     </div>`:""}<div class="tl"><span>Time spent</span>${sessChips(t, i)}
-      ${dn && !logEdit ? "" : t.tut ? (tst(t).a && !logEdit ? "" : addRow(t, i, "a")) + addRow(t, i, "m") : addRow(t, i, "")}<span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">No tasks match these filters in this phase. Try another course or type.</span></label></li>`;
+      ${dn && !logEdit ? "" : t.tut ? (tst(t).a && !logEdit ? "" : addRow(t, i, "a")) + addRow(t, i, "m") : addRow(t, i, "")}<span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">${shownDone ? "Everything here is done. Turn off Hide completed to see the finished tasks." : "No tasks match these filters in this phase. Try another course or type."}</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
@@ -837,10 +835,15 @@ document.getElementById("cfilters").addEventListener("click", e=>{
   syncCourseChips(); renderTasks();
 });
 syncCourseChips();
-function syncKindChips(){ document.querySelectorAll(".chip[data-ki]").forEach(c=>c.setAttribute("aria-pressed", c.dataset.ki===kind)); }
+function syncKindChips(){
+  document.querySelectorAll(".chip[data-ki]").forEach(c=>c.setAttribute("aria-pressed", c.dataset.ki===kind));
+  document.getElementById("hidedone").setAttribute("aria-pressed", hideDone);
+}
 document.getElementById("kfilters").addEventListener("click", e=>{
-  const b=e.target.closest(".chip[data-ki]"); if(!b) return;
-  kind=b.dataset.ki; store.set("epm-kind", kind); syncKindChips(); renderTasks();
+  const b=e.target.closest(".chip"); if(!b) return;
+  if (b.id==="hidedone") { hideDone=!hideDone; store.set("epm-hidedone", hideDone); }
+  else { kind=b.dataset.ki; store.set("epm-kind", kind); }
+  syncKindChips(); renderTasks();
 });
 syncKindChips();
 // time sessions: [day, minutes] or, on tutorials, [day, minutes, "a" attempt | "m" marking]
@@ -951,8 +954,7 @@ function courseEditHTML(c){
     </div>`).join("");
   return `<div class="cedit">
       <div class="pe-grid">${f("Exam date","exam","date")}${f("Time","time")}${f("Venue","venue")}${f("Seat","seat")}
-        ${f("Target %","target","number",'step="1" min="0" max="100"')}${f("Exam % needed","need","number",'step="0.1" min="0" max="100"')}
-        <label class="wide">Note under the heading<textarea data-cf="lever" rows="2">${esc(c.lever||"")}</textarea></label></div>
+        ${f("Target %","target","number",'step="1" min="0" max="100"')}${f("Exam % needed","need","number",'step="0.1" min="0" max="100"')}</div>
       <p class="note-small" style="margin:4px 0 0">Lectures: adding a date also adds a video task for it to the phase that date falls in. Changes save as you go, on this device.</p>
       ${rows}
       <div class="row"><button class="btn" data-addtopic>+ Add a topic</button><button class="btn" data-creset>Undo my changes to this course</button></div>
@@ -982,7 +984,6 @@ function renderCourses(){
       <div class="shead"><h2><span class="code">${c.code}</span>${esc(c.name)}</h2>
         <div class="when">Exam <b>${fmt(e)}, ${esc(c.time)}</b> · ${esc(c.venue)}, seat ${esc(c.seat)} <button class="btn editbtn" data-cedit="${c.code}" aria-pressed="${ed}">${ed ? "Done editing" : "Edit"}</button></div></div>
       ${ed ? courseEditHTML(c) : ""}
-      <p class="lever">${esc(c.lever)}</p>
       <div class="facts">
         <span><b>${s.behind}</b> videos behind (${s.vhrs.toFixed(1)} h at ${c.vlen} h each)</span>
         <span><b>${s.tocome}</b> videos still to come</span>
@@ -1125,7 +1126,7 @@ wkPlot.addEventListener("focusout", ()=>{ if (wkSel<0) document.getElementById("
 renderStrip(); renderPhases(); renderCourses(); renderWork();
 
 // ---- moving progress between the old page, this site and other devices ----
-const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-sessions","epm-donedate","epm-course","epm-sortc","epm-phase-view","epm-edits","epm-dd-applied"];
+const IO_KEYS = ["epm-done","epm-watch","epm-tut","epm-time","epm-sessions","epm-donedate","epm-course","epm-sortc","epm-hidedone","epm-phase-view","epm-edits","epm-dd-applied"];
 document.getElementById("snippet").textContent =
   'copy(JSON.stringify(Object.fromEntries(Object.keys(localStorage).filter(k=>k.startsWith("epm-")).map(k=>[k,JSON.parse(localStorage.getItem(k))]))))';
 const ioMsg = t => { document.getElementById("syncmsg").textContent = t; };
