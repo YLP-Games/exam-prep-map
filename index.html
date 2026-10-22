@@ -111,11 +111,6 @@ header{display:grid;gap:6px;margin-bottom:28px}
 .en-Low{background:var(--done-soft);color:var(--done)} .en-Med{background:var(--med-soft);color:var(--med)} .en-High{background:var(--todo-soft);color:var(--todo)}
 .note-small{font-size:12.5px;color:var(--muted);margin-top:8px}
 
-.tips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 28px;margin-top:14px}
-@media (max-width:700px){.tips{grid-template-columns:1fr}}
-.tips div{min-width:0}
-.tips b{display:block;font-family:var(--display);font-stretch:85%;font-size:15px}
-.tips p{margin:2px 0 0;color:var(--muted);font-size:14px}
 
 section{margin-top:48px;scroll-margin-top:16px}
 .shead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:end;gap:8px 24px;border-bottom:2px solid var(--ink);padding-bottom:8px}
@@ -327,11 +322,6 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
     <div class="wk-legend" id="wklegend"></div>
     <details class="wk-tbl"><summary>Show as a table</summary><div class="tbl" id="wktable"></div><p class="wk-all" id="wkall"></p></details>
     <p class="note-small">Each task counts at its planned time on the day you ticked it off. The numbers, chart and legend cover the last 7 days; the table covers every day, with the overall average and total under it. Ticks from before the site started recording dates don't appear here. Tap or hover a bar for the breakdown.</p>
-  </section>
-
-  <section id="how">
-    <div class="shead"><h2>How to go about it</h2></div>
-    <div class="tips" id="tips"></div>
   </section>
 
   <div id="courses"></div>
@@ -943,7 +933,6 @@ document.getElementById("tasks").addEventListener("change", e=>{
   refresh();
 });
 
-document.getElementById("tips").innerHTML = DATA.tips.map(([a,b])=>`<div><b>${esc(a)}</b><p>${esc(b)}</p></div>`).join("");
 
 // course ledgers
 function fmtDates(c, r){
