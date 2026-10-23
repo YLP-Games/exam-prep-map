@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-23.1">
+<meta name="build" content="2026-10-23.2">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -79,6 +79,11 @@ header{display:grid;gap:6px;margin-bottom:28px}
 .ph[aria-pressed="true"]{background:var(--accent-soft)}
 .ph .tag{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--accent)}
 .phase-body{margin-bottom:14px}
+.picker{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 6px;font-size:12.5px;color:var(--muted)}
+.picker .chip{font-size:11.5px;padding:2px 9px}
+#pickout{color:var(--ink);min-width:0}
+.pickgo{border:0;background:none;padding:0;font:inherit;font-weight:600;color:var(--accent);cursor:pointer;text-align:left;text-decoration:underline dotted}
+.tasks li.picked{background:var(--accent-soft);box-shadow:inset 3px 0 0 var(--accent)}
 
 .filters{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin:6px 0 10px;font-size:13px;color:var(--muted)}
 .chip{border:1px solid var(--rule);background:var(--surface);color:var(--ink);border-radius:999px;padding:3px 10px;font:600 12px var(--body);cursor:pointer}
@@ -266,6 +271,10 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
         <div class="today" id="today"></div></div>
     </div>
     <div class="filters">
+      <span class="picker"><span>Can't decide?</span>
+        <button class="chip" id="picksub">Pick a subject</button>
+        <button class="chip" id="picktask">Pick a task</button>
+        <span id="pickout" role="status"></span></span>
       <span class="progress" id="progress"></span>
     </div>
     <div class="filters" id="cfilters">
@@ -662,7 +671,7 @@ function renderTasks(){
     const lock = lockedDone(t) ? ` disabled title="Finished ${dayLabel(doneDate[key(t)])}. Use Edit log to change it."` : "";
     let part = "";
     if (t.v && !dn){ const w=t.v.filter(([c,s])=>watchedCS(c,s)).length; if (w) part=` <span class="part">${w} of ${t.v.length} watched</span>`; }
-    return `<li class="${dn?"done":""}"><label for="${id}">
+    return `<li class="${dn?"done":""}${t.id===pickedId?" picked":""}"><label for="${id}">
       <input type="checkbox" id="${id}" data-i="${i}" ${dn?"checked":""}${lock}>
       <span class="t">${t.note?`<span class="nb">Notes</span>`:""}${esc(t.note?t.t.replace(/^Notes:\s*/,""):t.t)}${part}</span>
       <span class="m"><span>${esc(NAMES[t.c]||t.c)}</span>${t.memo?`<span><b>${esc(t.memo)}</b></span>`:""}
@@ -819,6 +828,31 @@ document.getElementById("kfilters").addEventListener("click", e=>{
   syncKindChips(); renderTasks();
 });
 syncKindChips();
+// ---- "Can't decide?": a random subject, or a random unfinished task, from the phase on screen ----
+let pickedId = null;
+const randOf = (arr, not) => { const a = arr.length > 1 ? arr.filter(x=>x!==not) : arr; return a[Math.floor(Math.random()*a.length)]; };
+let lastSub = null;
+document.getElementById("picksub").addEventListener("click", ()=>{
+  const open = DATA.menu.filter(t=>t.p===shown+1 && !taskDone(t));
+  const subs = CORDER.filter(c=>open.some(t=>t.c===c));
+  const out = document.getElementById("pickout");
+  if (!subs.length) { out.textContent = "Nothing left in this phase"; return; }
+  const c = randOf(subs, lastSub); lastSub = c;
+  course = c; store.set("epm-course", course); syncCourseChips(); pickedId = null; renderTasks();
+  out.innerHTML = `→ <b>${SHORT[c]}</b>`;
+});
+document.getElementById("picktask").addEventListener("click", ()=>{
+  const open = DATA.menu.filter(t=>t.p===shown+1 && shows(t) && !taskDone(t));
+  const out = document.getElementById("pickout");
+  if (!open.length) { out.textContent = "Nothing left to pick here"; return; }
+  const t = randOf(open, DATA.menu.find(x=>x.id===pickedId)); pickedId = t.id; renderTasks();
+  out.innerHTML = `→ <button class="pickgo">${esc(t.t)}</button>`;
+  goToPicked();
+});
+function goToPicked(){
+  const li = document.querySelector("#tasks li.picked"); if (li) li.scrollIntoView({block:"center", behavior:"smooth"});
+}
+document.getElementById("pickout").addEventListener("click", e=>{ if (e.target.closest(".pickgo")) goToPicked(); });
 // time sessions: [day, minutes] or, on tutorials, [day, minutes, "a" attempt | "m" marking]
 const PART = {a: "Attempt", m: "Marking"};
 const partOf = (t, s) => t.tut ? (s[2] || "a") : "";
