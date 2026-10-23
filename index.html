@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-23.2">
+<meta name="build" content="2026-10-23.3">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -833,7 +833,7 @@ let pickedId = null;
 const randOf = (arr, not) => { const a = arr.length > 1 ? arr.filter(x=>x!==not) : arr; return a[Math.floor(Math.random()*a.length)]; };
 let lastSub = null;
 document.getElementById("picksub").addEventListener("click", ()=>{
-  const open = DATA.menu.filter(t=>t.p===shown+1 && !taskDone(t));
+  const open = DATA.menu.filter(t=>t.p===shown+1 && !taskDone(t) && typeOf(t)!=="notes");
   const subs = CORDER.filter(c=>open.some(t=>t.c===c));
   const out = document.getElementById("pickout");
   if (!subs.length) { out.textContent = "Nothing left in this phase"; return; }
@@ -842,9 +842,10 @@ document.getElementById("picksub").addEventListener("click", ()=>{
   out.innerHTML = `→ <b>${SHORT[c]}</b>`;
 });
 document.getElementById("picktask").addEventListener("click", ()=>{
-  const open = DATA.menu.filter(t=>t.p===shown+1 && shows(t) && !taskDone(t));
+  // videos and practice only: notes are never picked
+  const open = DATA.menu.filter(t=>t.p===shown+1 && shows(t) && !taskDone(t) && typeOf(t)!=="notes");
   const out = document.getElementById("pickout");
-  if (!open.length) { out.textContent = "Nothing left to pick here"; return; }
+  if (!open.length) { out.textContent = kind==="notes" ? "Picks are videos and practice only" : "Nothing left to pick here"; return; }
   const t = randOf(open, DATA.menu.find(x=>x.id===pickedId)); pickedId = t.id; renderTasks();
   out.innerHTML = `→ <button class="pickgo">${esc(t.t)}</button>`;
   goToPicked();
