@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-22.4">
+<meta name="build" content="2026-10-23.1">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -666,7 +666,7 @@ function renderTasks(){
       <input type="checkbox" id="${id}" data-i="${i}" ${dn?"checked":""}${lock}>
       <span class="t">${t.note?`<span class="nb">Notes</span>`:""}${esc(t.note?t.t.replace(/^Notes:\s*/,""):t.t)}${part}</span>
       <span class="m"><span>${esc(NAMES[t.c]||t.c)}</span>${t.memo?`<span><b>${esc(t.memo)}</b></span>`:""}
-        ${t.u?`<a href="${esc(t.u)}" target="_blank" rel="noopener">${esc(t.w)}</a>`:`<span>${esc(t.w||"")}</span>`}</span>
+</span>
     </label>${t.tut?`<div class="subs">
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}${lock}>Attempted</label>
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}${lock}>Marked</label>
