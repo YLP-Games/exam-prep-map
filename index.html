@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-24.1">
+<meta name="build" content="2026-10-24.2">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -263,7 +263,7 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
         <label>Starts<input type="date" data-pf="start"></label>
         <label>Ends<input type="date" data-pf="end"></label>
       </div>
-      <div class="row"><button class="btn" id="addtask">+ Add a task to this phase</button><button class="btn" id="resetedits">Undo all my edits</button></div>
+      <div class="row"><button class="btn" id="addtask">+ Add a task to this phase</button><button class="btn" id="addphase">+ Add a phase after this one</button><button class="btn del" id="delphase">Delete this phase</button><button class="btn" id="resetedits">Undo all my edits</button></div>
     </div>
     <div class="phases" id="phases" role="group" aria-label="Phases"></div>
     <div class="phase-body">
@@ -362,10 +362,12 @@ function saveEdits(){ store.set("epm-edits", edits); }
 (function applyEdits(){
   // a new phase plan in data.js replaces phase edits and task moves made against the previous plan
   if (DATA.phasePlan && edits.phasePlan !== DATA.phasePlan) {
-    edits.phases = {};
+    edits.phases = {}; delete edits.phaseList;
     Object.values(edits.tasks).forEach(p=>{ delete p.p; });
     edits.phasePlan = DATA.phasePlan; saveEdits();
   }
+  // once you've added or removed a phase (or edited one since), your whole phase list replaces the published one
+  if (Array.isArray(edits.phaseList) && edits.phaseList.length) DATA.phases = JSON.parse(JSON.stringify(edits.phaseList));
   Object.entries(edits.phases).forEach(([i,p])=>{ if (DATA.phases[i]) Object.assign(DATA.phases[i], p); });
   edits.added.forEach(t=>{ if (!DATA.menu.some(x=>x.id===t.id)) DATA.menu.push({...t}); });
   DATA.menu.forEach(t=>{ if (edits.tasks[t.id]) Object.assign(t, edits.tasks[t.id]); });
@@ -744,16 +746,42 @@ document.getElementById("phaseedit").addEventListener("change", e=>{
   if ((f==="start" || f==="end") && !/^\d{4}-\d{2}-\d{2}$/.test(v)) { e.target.value = p[f]; return; }
   const start = f==="start" ? v : p.start, end = f==="end" ? v : p.end;
   if (start > end) { alert("A phase can't end before it starts."); e.target.value = p[f]; return; }
-  p[f] = v; edits.phases[shown] = Object.assign(edits.phases[shown]||{}, {[f]: v});
-  if (f === "start" || f === "end") { p.label = ""; edits.phases[shown].label = ""; }   // the plan's date label no longer fits
+  p[f] = v;
+  if (f === "start" || f === "end") p.label = "";   // the plan's date label no longer fits
   // keep phases from overlapping: a later end pushes the next phase's start to the day after
   const nx = DATA.phases[shown+1];
   if (f === "end" && nx && nx.start <= v) {
     const s = d(v); s.setDate(s.getDate()+1); const ns = ymd(s);
-    if (ns <= nx.end) { nx.start = ns; nx.label = ""; edits.phases[shown+1] = Object.assign(edits.phases[shown+1]||{}, {start: ns, label: ""}); }
+    if (ns <= nx.end) { nx.start = ns; nx.label = ""; }
   }
-  saveEdits();
+  savePhaseList();
   syncPhaseDates(); findCurrent(); renderPhases(); refresh();
+});
+function savePhaseList(){ edits.phaseList = JSON.parse(JSON.stringify(DATA.phases)); edits.phases = {}; saveEdits(); }
+const addDays = (s, n) => { const x = d(s); x.setDate(x.getDate()+n); return ymd(x); };
+// keep the "N." at the start of phase names in step with their position
+function renumberPhases(){ DATA.phases.forEach((p,k)=>{ if (/^\d+\.\s*/.test(p.name)) p.name = p.name.replace(/^\d+\.\s*/, `${k+1}. `); }); }
+function afterPhaseChange(newShown){
+  shown = newShown; store.set("epm-phase-view", shown);
+  syncPhaseDates(); findCurrent(); renderPhaseForm(); renderPhases(); refresh();
+}
+document.getElementById("addphase").addEventListener("click", ()=>{
+  const i = shown, cur = DATA.phases[i], nx = DATA.phases[i+1];
+  const start = addDays(cur.end, 1);
+  const end = nx && nx.start > start ? addDays(nx.start, -1) : addDays(start, 6);
+  DATA.menu.forEach(t=>{ if (t.p > i+1) setTaskField(t.id, "p", t.p + 1); });   // later phases move up one number
+  DATA.phases.splice(i+1, 0, {name: `${i+2}. New phase`, start, end, label: "", goal: "", one: "", also: ""});
+  renumberPhases(); savePhaseList(); afterPhaseChange(i+1);
+  const nm = document.querySelector('#phaseedit [data-pf="name"]'); if (nm) { nm.focus(); nm.select(); }
+});
+document.getElementById("delphase").addEventListener("click", ()=>{
+  if (DATA.phases.length <= 1) { alert("You need at least one phase."); return; }
+  const i = shown, p = DATA.phases[i], to = i > 0 ? i : 1;            // tasks go to the phase before (or the next one, if it's the first)
+  const n = DATA.menu.filter(t=>t.p===i+1).length, toName = DATA.phases[i > 0 ? i-1 : 1].name;
+  if (!confirm(`Delete “${p.name}”?` + (n ? ` Its ${n} task${n===1?"":"s"} move to “${toName}”.` : "") + " Your ticks stay.")) return;
+  DATA.menu.forEach(t=>{ if (t.p === i+1) setTaskField(t.id, "p", to); else if (t.p > i+1) setTaskField(t.id, "p", t.p - 1); });
+  DATA.phases.splice(i, 1);
+  renumberPhases(); savePhaseList(); afterPhaseChange(Math.max(0, i-1));
 });
 document.getElementById("addtask").addEventListener("click", ()=>{
   const t = {id:"u"+Date.now().toString(36), p:shown+1, t:"New task", tm:"30 min", e:"Med",
