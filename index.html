@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-23.3">
+<meta name="build" content="2026-10-24.1">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -255,7 +255,7 @@ details.wk-tbl td,details.wk-tbl th{padding:5px 8px}
   <div class="strip" id="strip"></div>
 
   <section id="now" style="margin-top:0">
-    <div class="shead"><h2>Where you are</h2><span class="when"><span id="nowline"></span> <button class="btn editbtn" id="logbtn" aria-pressed="false" title="Change time and ticks already recorded">Edit log</button> <button class="btn editbtn" id="editbtn" aria-pressed="false">Edit plan</button></span></div>
+    <div class="shead"><h2>Where you are</h2><span class="when"><span id="nowline"></span> <button class="btn editbtn" id="drivebtn" hidden title="Sync your ticks, time and edits through your Google Drive">Connect Drive</button> <button class="btn editbtn" id="logbtn" aria-pressed="false" title="Change time and ticks already recorded">Edit log</button> <button class="btn editbtn" id="editbtn" aria-pressed="false">Edit plan</button></span></div>
     <div class="phaseedit" id="phaseedit" hidden>
       <p class="note-small" style="margin:0 0 4px">Editing the selected phase. Changes save as you go, on this device; Export at the bottom carries them to another device. Drag a task's handle onto a phase button above to move it, or use its phase menu.</p>
       <div class="pe-grid">
@@ -321,6 +321,7 @@ window.addEventListener("error", e=>{
   document.body.prepend(b);
 });
 </script>
+<script>document.write('<script src="sync.js?v=' + document.querySelector('meta[name="build"]').content + '"><\/script>');</script>
 <script>document.write('<script src="data.js?v=' + document.querySelector('meta[name="build"]').content + '"><\/script>');</script>
 <script>
 const DATA = window.DATA;
@@ -334,7 +335,7 @@ const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">"
 const now = new Date(); const TODAY = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 const daysTo = s => Math.round((d(s)-TODAY)/864e5);
 const fmt = x => `${DOW[x.getDay()]} ${x.getDate()} ${MON[x.getMonth()]}`;
-const store = { get(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return f}}, set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
+const store = { get(k,f){try{const v=localStorage.getItem(k);return v===null?f:JSON.parse(v)}catch(e){return f}}, set(k,v){try{ if (window.epmBeforeSet) epmBeforeSet(k,v); localStorage.setItem(k,JSON.stringify(v))}catch(e){}} };
 // ---- saved ticks are keyed by each task's stable id. Older saves (and imports from the old page) used
 // "phase|title"; convert those by matching the title as published, so renaming or moving a task never loses a tick ----
 (function migrateKeys(){
@@ -762,7 +763,7 @@ document.getElementById("addtask").addEventListener("click", ()=>{
 });
 document.getElementById("resetedits").addEventListener("click", ()=>{
   if (!confirm("Undo every change you've made to the plan on this device? Your ticks stay.")) return;
-  try { localStorage.removeItem("epm-edits"); } catch(e) {}
+  store.set("epm-edits", {});   // (not a plain delete, so Drive sync carries the undo to your other devices)
   location.reload();
 });
 document.getElementById("tasks").addEventListener("change", e=>{
