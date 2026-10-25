@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-24.2">
+<meta name="build" content="2026-10-25.1">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -446,7 +446,22 @@ const sessLog = store.get("epm-sessions", {});
 function saveSess(){ store.set("epm-sessions", sessLog); }
 const sess = t => sessLog[key(t)] || t.sessions || [];       // t.sessions: reported outside the site, until you log your own
 const spent = t => sess(t).reduce((a,s)=>a+(+s[1]||0),0);
-function planMin(t){ const m=(t.tm||"").match(/[0-9.]+/); if(!m) return 0; const n=parseFloat(m[0]); return /min/.test(t.tm) ? n : n*60; }
+// a written duration in minutes: "45 min", "1.5 h", "2h", "1h 40 min", "1h40m", "1 hour 40 minutes", "100 minutes",
+// "1.66h", "1:40". A bare number is hours up to 8 and minutes above that ("2" = 2 h, "90" = 90 min).
+function parseDuration(s){
+  s = String(s || "").toLowerCase().replace(/,/g, ".").trim();
+  if (!s) return 0;
+  const hm = s.match(/^(\d+):(\d{1,2})$/);
+  if (hm) return +hm[1] * 60 + +hm[2];
+  let total = 0, found = false;
+  s.replace(/(\d+(?:\.\d+)?)\s*(hours?|hrs?|h|minutes?|mins?|m)(?![a-z])/g, (_, n, u) => {
+    total += u[0] === "h" ? parseFloat(n) * 60 : parseFloat(n); found = true; return "";
+  });
+  if (found) return Math.round(total);
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : Math.round(n <= 8 ? n * 60 : n);
+}
+function planMin(t){ return parseDuration(t.tm); }
 function fmtMin(m){ m=Math.round(m); const h=Math.floor(m/60), r=m%60; return h ? h+"h "+String(r).padStart(2,"0")+"m" : r+"m"; }
 // one-off: tutorial tasks ticked before the attempted/marked boxes existed count as marked
 if (store.get("epm-tut", null) === null) {
@@ -801,7 +816,7 @@ document.getElementById("tasks").addEventListener("change", e=>{
   let v = e.target.value;
   if (f === "t") { v = v.trim(); if (!v) { e.target.value = DATA.menu.find(x=>x.id===row.dataset.id).t; return; } }
   if (f === "p") v = +v;
-  if (f === "tm" && !/[0-9]/.test(v)) { alert("Planned time needs a number, like 45 min or 1.5 h."); return; }
+  if (f === "tm" && !(parseDuration(v) > 0)) { alert("Couldn't read that time. Try 45 min, 1.5 h, 1h 40m or 100 minutes."); e.target.value = DATA.menu.find(x=>x.id===row.dataset.id).tm; return; }
   setTaskField(row.dataset.id, f, v);
   if (f === "p" || f === "c") { renderPhases(); refresh(); } else { renderStrip(); renderPace(); renderPhaseTotals(); renderWork(); }
 }, true);
