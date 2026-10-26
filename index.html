@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-25.1">
+<meta name="build" content="2026-10-26.1">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -192,6 +192,8 @@ select.redate{font-size:12px;padding:1px 4px}
 .erow .eg2 > select{flex:0 0 auto}
 .erow select{width:auto}
 .erow input.etm{width:72px}
+.etm2{display:inline-flex;gap:6px}
+.etm2 label{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--muted)}
 .drag{cursor:grab;color:var(--muted);font-size:16px;line-height:1;user-select:none;touch-action:none}
 .btn.del{color:var(--todo);padding:4px 8px}
 @media (max-width:640px){
@@ -461,7 +463,29 @@ function parseDuration(s){
   const n = parseFloat(s);
   return isNaN(n) ? 0 : Math.round(n <= 8 ? n * 60 : n);
 }
-function planMin(t){ return parseDuration(t.tm); }
+// practice (tutorials, past papers, workshops, questions) is planned and logged in two parts: attempting and marking
+const isPractice = t => !(t.v || t.kind === "video" || t.note);
+// planned minutes per part: your own split (t.tmA / t.tmM) if set, otherwise about a quarter of the time for marking
+function planParts(t){
+  if (t.tmA != null || t.tmM != null) return {a: parseDuration(t.tmA), m: parseDuration(t.tmM)};
+  const total = parseDuration(t.tm), m = total ? Math.max(5, Math.round(total * 0.25 / 5) * 5) : 0;
+  return {a: Math.max(0, total - m), m: Math.min(m, total)};
+}
+function planMin(t){ if (isPractice(t) && (t.tmA != null || t.tmM != null)) { const p = planParts(t); return p.a + p.m; } return parseDuration(t.tm); }
+// minutes logged, for one part ("a"/"m") or all (null), optionally leaving one day out
+function spentPart(t, part, skipDay){
+  return sess(t).filter(s=>s[0] !== skipDay && (part === null || (s[2] || "a") === part)).reduce((a,s)=>a+(+s[1]||0),0);
+}
+// planned time still ahead on a task; `atDayStart` = as it stood before anything logged or ticked today
+function taskLeft(t, atDayStart){
+  const skip = atDayStart ? TKEY : null;
+  if (!atDayStart && taskDone(t)) return 0;
+  if (!isPractice(t)) return Math.max(0, planMin(t) - spentPart(t, null, skip));
+  const p = planParts(t);
+  const attemptedToday = sess(t).some(s=>s[0]===TKEY && (s[2]||"a")==="a");
+  const attemptDone = t.tut && tst(t).a && !(atDayStart && attemptedToday);   // ticked Attempted: nothing left to attempt
+  return (attemptDone ? 0 : Math.max(0, p.a - spentPart(t, "a", skip))) + Math.max(0, p.m - spentPart(t, "m", skip));
+}
 function fmtMin(m){ m=Math.round(m); const h=Math.floor(m/60), r=m%60; return h ? h+"h "+String(r).padStart(2,"0")+"m" : r+"m"; }
 // one-off: tutorial tasks ticked before the attempted/marked boxes existed count as marked
 if (store.get("epm-tut", null) === null) {
@@ -515,13 +539,18 @@ const CORDER = ["FTX4056S","ACC3009W","ACC3004W","FTX4087S"];
 
 // estimate = time already logged + time still to do, task by task:
 //   finished: what you logged (planned if you logged nothing) · not finished: logged so far, or the plan if that's more
-function taskEstimate(t){ const s = spent(t), p = planMin(t); return taskDone(t) ? (s || p) : Math.max(s, p); }
+function taskEstimate(t){ const s = spent(t); return taskDone(t) ? (s || planMin(t)) : s + taskLeft(t); }
 function phaseTotal(i){ return DATA.menu.filter(t=>t.p===i+1).reduce((a,t)=>a+taskEstimate(t),0); }
 // what is still ahead in a phase, and how that spreads over the days it has left
 function renderPhaseTotals(){
   document.querySelectorAll("#phases .ph").forEach((b,i)=>{ const e=b.querySelector(".ptot"); if(e) e.textContent = "\u2248 " + fmtMin(phaseTotal(i)) + " total"; });
 }
-function phaseLeft(i){ return DATA.menu.filter(t=>t.p===i+1 && !taskDone(t)).reduce((a,t)=>a+Math.max(0, planMin(t)-spent(t)),0); }
+function plannedLabel(t){
+  if (!isPractice(t)) return `planned ${fmtMin(planMin(t))}`;
+  const p = planParts(t);
+  return `planned ${fmtMin(p.a)} attempt + ${fmtMin(p.m)} marking`;
+}
+function phaseLeft(i){ return DATA.menu.filter(t=>t.p===i+1 && !taskDone(t)).reduce((a,t)=>a+taskLeft(t),0); }
 function daysLeft(i){
   const end = d(PHASE_DATES[i][1]), start = d(PHASE_DATES[i][0]);
   const from = TODAY > start ? TODAY : start;
@@ -621,11 +650,9 @@ function renderToday(i){
   // start of today minus what's left now (a 45 min video finished in 60 min covers 45 min)
   const coveredC = {};
   DATA.menu.filter(t=>t.p===i+1).forEach(t=>{
-    const plan = planMin(t), todayMin = sess(t).filter(s=>s[0]===TKEY).reduce((a,s)=>a+(+s[1]||0),0);
     const doneEarlier = taskDone(t) && (doneDate[key(t)]||TKEY) !== TKEY;
     if (doneEarlier) return;
-    const leftStart = Math.max(0, plan - (spent(t) - todayMin));
-    const leftNow = taskDone(t) ? 0 : Math.max(0, plan - spent(t));
+    const leftStart = taskLeft(t, true), leftNow = taskLeft(t);
     if (leftStart > leftNow) coveredC[t.c] = (coveredC[t.c]||0) + leftStart - leftNow;
   });
   const covered = Object.values(coveredC).reduce((a,m)=>a+m,0);
@@ -698,7 +725,7 @@ function renderTasks(){
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}${lock}>Attempted</label>
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}${lock}>Marked</label>
     </div>`:""}<div class="tl"><span>Time spent</span>${sessChips(t, i)}
-      ${dn && !logEdit ? "" : t.tut ? (tst(t).a && !logEdit ? "" : addRow(t, i, "a")) + addRow(t, i, "m") : addRow(t, i, "")}<span class="plan">${doneLabel(t, i)}planned ${fmtMin(planMin(t))}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">${shownDone ? "Everything here is done. Turn off Hide completed to see the finished tasks." : "No tasks match these filters in this phase. Try another course or type."}</span></label></li>`;
+      ${dn && !logEdit ? "" : isPractice(t) ? (t.tut && tst(t).a && !logEdit ? "" : addRow(t, i, "a")) + addRow(t, i, "m") : addRow(t, i, "")}<span class="plan">${doneLabel(t, i)}${plannedLabel(t)}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">${shownDone ? "Everything here is done. Turn off Hide completed to see the finished tasks." : "No tasks match these filters in this phase. Try another course or type."}</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
@@ -716,7 +743,8 @@ function renderEditTasks(){
         <span class="drag" draggable="true" title="Drag onto a phase above" aria-hidden="true">⠿</span>
         <input class="et" data-f="t" value="${esc(t.t)}" aria-label="Task title">
         <select data-f="p" aria-label="Phase">${opt(phases, t.p)}</select>
-        <input class="etm" data-f="tm" value="${esc(t.tm)}" aria-label="Planned time, e.g. 45 min or 1.5 h">
+        ${isPractice(t) ? (pp => `<span class="etm2"><label>Attempt<input class="etm" data-f="tmA" value="${esc(t.tmA ?? fmtMin(pp.a))}" aria-label="Planned attempt time"></label><label>Marking<input class="etm" data-f="tmM" value="${esc(t.tmM ?? fmtMin(pp.m))}" aria-label="Planned marking time"></label></span>`)(planParts(t))
+          : `<input class="etm" data-f="tm" value="${esc(t.tm)}" aria-label="Planned time, e.g. 45 min or 1.5 h">`}
         <select data-f="c" aria-label="Course">${opt(CORDER.map(c=>[c, SHORT[c]]), t.c)}</select>
         <button class="btn del" data-del="${t.id}" aria-label="Delete ${esc(t.t)}">Delete</button>
       </div>
@@ -817,6 +845,14 @@ document.getElementById("tasks").addEventListener("change", e=>{
   if (f === "t") { v = v.trim(); if (!v) { e.target.value = DATA.menu.find(x=>x.id===row.dataset.id).t; return; } }
   if (f === "p") v = +v;
   if (f === "tm" && !(parseDuration(v) > 0)) { alert("Couldn't read that time. Try 45 min, 1.5 h, 1h 40m or 100 minutes."); e.target.value = DATA.menu.find(x=>x.id===row.dataset.id).tm; return; }
+  if (f === "tmA" || f === "tmM") {   // attempt / marking split: keep both parts, and the total in tm
+    const t = DATA.menu.find(x=>x.id===row.dataset.id), p = planParts(t);
+    if (!/\d/.test(v) || (parseDuration(v) === 0 && !/^0/.test(v.trim()))) { alert("Couldn't read that time. Try 45 min, 1h 10m or 0."); e.target.value = fmtMin(f==="tmA" ? p.a : p.m); return; }
+    const a = f==="tmA" ? v : (t.tmA ?? fmtMin(p.a)), m = f==="tmM" ? v : (t.tmM ?? fmtMin(p.m));
+    setTaskField(row.dataset.id, "tmA", a); setTaskField(row.dataset.id, "tmM", m);
+    setTaskField(row.dataset.id, "tm", fmtMin(parseDuration(a) + parseDuration(m)));
+    renderStrip(); renderPace(); renderPhaseTotals(); renderWork(); return;
+  }
   setTaskField(row.dataset.id, f, v);
   if (f === "p" || f === "c") { renderPhases(); refresh(); } else { renderStrip(); renderPace(); renderPhaseTotals(); renderWork(); }
 }, true);
@@ -900,10 +936,10 @@ function goToPicked(){
 document.getElementById("pickout").addEventListener("click", e=>{ if (e.target.closest(".pickgo")) goToPicked(); });
 // time sessions: [day, minutes] or, on tutorials, [day, minutes, "a" attempt | "m" marking]
 const PART = {a: "Attempt", m: "Marking"};
-const partOf = (t, s) => t.tut ? (s[2] || "a") : "";
+const partOf = (t, s) => isPractice(t) ? (s[2] || "a") : "";
 function sessChips(t, i){
   const S = sess(t);
-  if (logEdit) return S.map((s,j)=>`<span class="sess">${t.tut ? `<select data-spart="${i}:${j}" aria-label="Attempt or marking">${opt([["a","Attempt"],["m","Marking"]], partOf(t,s))}</select>` : ""}<input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>`).join("");
+  if (logEdit) return S.map((s,j)=>`<span class="sess">${isPractice(t) ? `<select data-spart="${i}:${j}" aria-label="Attempt or marking">${opt([["a","Attempt"],["m","Marking"]], partOf(t,s))}</select>` : ""}<input type="number" min="0" step="5" inputmode="numeric" data-smin="${i}:${j}" value="${+s[1]}" aria-label="Minutes in this session"><span>min</span><select data-sday="${i}:${j}" aria-label="Day of this session">${whenOptions(s[0])}</select><button class="x" data-sdel="${i}:${j}" aria-label="Remove this ${fmtMin(+s[1])} session">×</button></span>`).join("");
   // read-only: one chip per day (per part on tutorials), minutes added up
   const g = new Map();
   S.forEach(s=>{ const k = partOf(t,s) + "|" + s[0]; g.set(k, (g.get(k)||0) + (+s[1]||0)); });
