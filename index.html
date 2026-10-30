@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-26.1">
+<meta name="build" content="2026-10-30.1">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -367,6 +367,11 @@ function saveEdits(){ store.set("epm-edits", edits); }
     edits.phases = {}; delete edits.phaseList;
     Object.values(edits.tasks).forEach(p=>{ delete p.p; });
     edits.phasePlan = DATA.phasePlan; saveEdits();
+  }
+  // a new time plan in data.js (attempt + marking times per task) replaces planned times you'd set on those tasks
+  if (DATA.timePlan && edits.timePlan !== DATA.timePlan) {
+    DATA.menu.forEach(t=>{ const p = edits.tasks[t.id]; if (p && t.tmA != null) { delete p.tm; delete p.tmA; delete p.tmM; } });
+    edits.timePlan = DATA.timePlan; saveEdits();
   }
   // once you've added or removed a phase (or edited one since), your whole phase list replaces the published one
   if (Array.isArray(edits.phaseList) && edits.phaseList.length) DATA.phases = JSON.parse(JSON.stringify(edits.phaseList));
