@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-30.1">
+<meta name="build" content="2026-10-30.2">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -482,6 +482,7 @@ function spentPart(t, part, skipDay){
   return sess(t).filter(s=>s[0] !== skipDay && (part === null || (s[2] || "a") === part)).reduce((a,s)=>a+(+s[1]||0),0);
 }
 // planned time still ahead on a task; `atDayStart` = as it stood before anything logged or ticked today
+// practice: attempt + marking is one budget (time saved on one part covers the other); ticked Attempted with none logged counts as the planned attempt
 function taskLeft(t, atDayStart){
   const skip = atDayStart ? TKEY : null;
   if (!atDayStart && taskDone(t)) return 0;
@@ -489,7 +490,8 @@ function taskLeft(t, atDayStart){
   const p = planParts(t);
   const attemptedToday = sess(t).some(s=>s[0]===TKEY && (s[2]||"a")==="a");
   const attemptDone = t.tut && tst(t).a && !(atDayStart && attemptedToday);   // ticked Attempted: nothing left to attempt
-  return (attemptDone ? 0 : Math.max(0, p.a - spentPart(t, "a", skip))) + Math.max(0, p.m - spentPart(t, "m", skip));
+  const spentA = spentPart(t, "a", skip), spentA_eff = attemptDone && !spentA ? p.a : spentA;
+  return Math.max(0, p.a + p.m - spentA_eff - spentPart(t, "m", skip));
 }
 function fmtMin(m){ m=Math.round(m); const h=Math.floor(m/60), r=m%60; return h ? h+"h "+String(r).padStart(2,"0")+"m" : r+"m"; }
 // one-off: tutorial tasks ticked before the attempted/marked boxes existed count as marked
