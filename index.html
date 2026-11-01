@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="build" content="2026-10-30.2">
+<meta name="build" content="2026-11-01.1">
 <script>
 // browsers can keep an old copy of this page for a while after an update; check for a newer build and load it
 (function(){
@@ -373,6 +373,11 @@ function saveEdits(){ store.set("epm-edits", edits); }
     DATA.menu.forEach(t=>{ const p = edits.tasks[t.id]; if (p && t.tmA != null) { delete p.tm; delete p.tmA; delete p.tmM; } });
     edits.timePlan = DATA.timePlan; saveEdits();
   }
+  // past papers (paper: true in data.js) replace any tutorial/notes kind you'd set on those tasks
+  if (DATA.paperPlan && edits.paperPlan !== DATA.paperPlan) {
+    DATA.menu.forEach(t=>{ const p = edits.tasks[t.id]; if (p && t.paper) { delete p.tut; delete p.note; delete p.paper; } });
+    edits.paperPlan = DATA.paperPlan; saveEdits();
+  }
   // once you've added or removed a phase (or edited one since), your whole phase list replaces the published one
   if (Array.isArray(edits.phaseList) && edits.phaseList.length) DATA.phases = JSON.parse(JSON.stringify(edits.phaseList));
   Object.entries(edits.phases).forEach(([i,p])=>{ if (DATA.phases[i]) Object.assign(DATA.phases[i], p); });
@@ -410,9 +415,10 @@ function defWatched(r, s){                           // spreadsheet status as of
 }
 const rowOf = (code, s) => (DATA.courses.find(c=>c.code===code)?.rows || []).find(r=>r.dates.includes(s));
 const watchedCS = (code, s) => isWatched(code, rowOf(code, s), s);
+const ticks = t => t.tut || t.paper;   // tutorials and past papers have Attempted + Marked boxes
 function taskDone(t){
   if (t.v) return t.v.every(([c,s])=>watchedCS(c,s));
-  if (t.tut) return tst(t).m;
+  if (ticks(t)) return tst(t).m;
   return doneSet.has(key(t));
 }
 function tutsDone(code){
@@ -489,15 +495,16 @@ function taskLeft(t, atDayStart){
   if (!isPractice(t)) return Math.max(0, planMin(t) - spentPart(t, null, skip));
   const p = planParts(t);
   const attemptedToday = sess(t).some(s=>s[0]===TKEY && (s[2]||"a")==="a");
-  const attemptDone = t.tut && tst(t).a && !(atDayStart && attemptedToday);   // ticked Attempted: nothing left to attempt
+  const attemptDone = ticks(t) && tst(t).a && !(atDayStart && attemptedToday);   // ticked Attempted: nothing left to attempt
   const spentA = spentPart(t, "a", skip), spentA_eff = attemptDone && !spentA ? p.a : spentA;
   return Math.max(0, p.a + p.m - spentA_eff - spentPart(t, "m", skip));
 }
 function fmtMin(m){ m=Math.round(m); const h=Math.floor(m/60), r=m%60; return h ? h+"h "+String(r).padStart(2,"0")+"m" : r+"m"; }
-// one-off: tutorial tasks ticked before the attempted/marked boxes existed count as marked
-if (store.get("epm-tut", null) === null) {
-  DATA.menu.forEach(t=>{ if (t.tut && doneSet.has(key(t))) tutState[key(t)] = {a:true, m:true}; });
-  saveTut();
+// one-off: tutorial / past paper tasks ticked before they had attempted/marked boxes count as marked
+{
+  let ch = false;
+  DATA.menu.forEach(t=>{ if (ticks(t) && doneSet.has(key(t)) && !tutState[key(t)]) { tutState[key(t)] = {a:true, m:true}; ch = true; } });
+  if (ch || store.get("epm-tut", null) === null) saveTut();
 }
 function saveWatch(){ store.set("epm-watch", watchMap); }
 // one-off: video tasks you ticked before dates were linked count as watched
@@ -728,16 +735,16 @@ function renderTasks(){
       <span class="t">${t.note?`<span class="nb">Notes</span>`:""}${esc(t.note?t.t.replace(/^Notes:\s*/,""):t.t)}${part}</span>
       <span class="m"><span>${esc(NAMES[t.c]||t.c)}</span>${t.memo?`<span><b>${esc(t.memo)}</b></span>`:""}
 </span>
-    </label>${t.tut?`<div class="subs">
+    </label>${ticks(t)?`<div class="subs">
       <label class="${tst(t).a?"on":""}"><input type="checkbox" data-i="${i}" data-sub="a" ${tst(t).a?"checked":""}${lock}>Attempted</label>
       <label class="${tst(t).m?"on":""}"><input type="checkbox" data-i="${i}" data-sub="m" ${tst(t).m?"checked":""}${lock}>Marked</label>
     </div>`:""}<div class="tl"><span>Time spent</span>${sessChips(t, i)}
-      ${dn && !logEdit ? "" : isPractice(t) ? (t.tut && tst(t).a && !logEdit ? "" : addRow(t, i, "a")) + addRow(t, i, "m") : addRow(t, i, "")}<span class="plan">${doneLabel(t, i)}${plannedLabel(t)}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">${shownDone ? "Everything here is done. Turn off Hide completed to see the finished tasks." : "No tasks match these filters in this phase. Try another course or type."}</span></label></li>`;
+      ${dn && !logEdit ? "" : isPractice(t) ? (ticks(t) && tst(t).a && !logEdit ? "" : addRow(t, i, "a")) + addRow(t, i, "m") : addRow(t, i, "")}<span class="plan">${doneLabel(t, i)}${plannedLabel(t)}</span></div></li>`;}).join("") || `<li><label><span></span><span class="t" style="font-weight:400;color:var(--muted)">${shownDone ? "Everything here is done. Turn off Hide completed to see the finished tasks." : "No tasks match these filters in this phase. Try another course or type."}</span></label></li>`;
 }
 function refresh(){ renderStrip(); renderTasks(); renderCourses(); renderPace(); renderPhaseTotals(); renderWork(); }
 
 // ---- edit mode: change phases and tasks; every change is saved to epm-edits on this device ----
-const KIND_OF = t => t.v || t.kind === "video" ? "video" : t.tut ? "tut" : t.note ? "notes" : "practice";
+const KIND_OF = t => t.v || t.kind === "video" ? "video" : t.paper ? "paper" : t.tut ? "tut" : t.note ? "notes" : "practice";
 const opt = (pairs, sel) => pairs.map(([v,l])=>`<option value="${v}"${String(v)===String(sel)?" selected":""}>${l}</option>`).join("");
 function renderEditTasks(){
   const all = DATA.menu.filter(t=>t.p===shown+1 && shows(t));
@@ -756,7 +763,7 @@ function renderEditTasks(){
         <button class="btn del" data-del="${t.id}" aria-label="Delete ${esc(t.t)}">Delete</button>
       </div>
       <div class="eg2">
-        ${!t.v ? `<select data-f="kind" aria-label="Kind of task">${opt([["video","Video"],["notes","Notes"],["practice","Practice / study"],["tut","Tutorial"]], KIND_OF(t))}</select>` : ""}
+        ${!t.v ? `<select data-f="kind" aria-label="Kind of task">${opt([["video","Video"],["notes","Notes"],["practice","Practice / study"],["tut","Tutorial"],["paper","Past paper"]], KIND_OF(t))}</select>` : ""}
         <input data-f="memo" value="${esc(t.memo||"")}" placeholder="Note shown on the task (optional)" aria-label="Note">
       </div></li>`;
   }).join("") || `<li class="erow"><span class="note-small">No tasks in this phase${course!=="all"||kind!=="all"?" match these filters":""}. Use “Add a task” above.</span></li>`;
@@ -764,7 +771,7 @@ function renderEditTasks(){
 function setTaskField(id, f, v){
   const t = DATA.menu.find(x=>x.id===id); if (!t) return;
   const patch = {[f]: v};
-  if (f === "kind") Object.assign(patch, {tut: v==="tut", note: v==="notes"});
+  if (f === "kind") Object.assign(patch, {tut: v==="tut", paper: v==="paper", note: v==="notes"});
   Object.assign(t, patch);
   const a = edits.added.find(x=>x.id===id);
   if (a) Object.assign(a, patch); else edits.tasks[id] = Object.assign(edits.tasks[id]||{}, patch);
@@ -1001,7 +1008,7 @@ document.getElementById("tasks").addEventListener("change", e=>{
     sessLog[key(t)] = list; sessionsChanged(t); return;
   }
   const i=e.target.dataset.i; if(i===undefined) return; const t=DATA.menu[+i], on=e.target.checked;
-  if (t.tut) {
+  if (ticks(t)) {
     const st = {...tst(t)}, sub = e.target.dataset.sub;
     if (sub==="a") { st.a = on; if (!on) st.m = false; }          // unticking attempted clears marked
     else if (sub==="m") { st.m = on; if (on) st.a = true; }       // marking implies attempted
